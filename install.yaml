@@ -29,3 +29,8 @@
         name:
           - vlc
         state: present
+
+    - name: Copy python files
+      ansible.builtin.copy:
+        src: snap.py
+        dest: snap.py
