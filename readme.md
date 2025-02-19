@@ -1,1 +1,1 @@
-eyyy initial commit
+ansible-playbook -i inventory.yaml install.yaml

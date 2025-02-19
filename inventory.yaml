@@ -1,6 +1,10 @@
 cameras:
   hosts:
     picam0.local:
+      ansible_user: picam
     picam1.local:
+      ansible_user: picam
     picam2.local:
+      ansible_user: picam
     picam3.local:
+      ansible_user: picam
