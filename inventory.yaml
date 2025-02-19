@@ -1,0 +1,6 @@
+cameras:
+  hosts:
+    picam0.local:
+    picam1.local:
+    picam2.local:
+    picam3.local:
