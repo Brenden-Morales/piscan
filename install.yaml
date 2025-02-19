@@ -16,3 +16,16 @@
     - name: Upgrade all packages (Optional)
       apt:
         upgrade: dist  # Performs a full upgrade, including APT itself
+
+    - name: Install picamera
+      apt:
+        name:
+          - python3-picamera2
+        state: present
+        install_recommends: no
+
+    - name: Install vlc
+      apt:
+        name:
+          - vlc
+        state: present
