@@ -1,6 +1,11 @@
 - name: Take snapshots on cameras and then copy them to localhost
   hosts: cameras
   tasks:
+    - name: Copy camera configs
+      ansible.builtin.copy:
+        src: camera_configs.yaml
+        dest: camera_configs.yaml
+
     - name: Take snapshot with python
       ansible.builtin.script: snap.py
       args:

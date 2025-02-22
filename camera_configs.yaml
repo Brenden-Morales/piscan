@@ -1,0 +1,6 @@
+- host: picam0
+- host: picam1
+- host: picam2
+  rotation: 180
+- host: picam3
+  rotation: 180
