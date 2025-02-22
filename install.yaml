@@ -2,13 +2,6 @@
   become: yes # Runs commands with sudo
   hosts: cameras
   tasks:
-    - name: Ping my hosts
-      ansible.builtin.ping:
-
-    - name: Print message
-      ansible.builtin.debug:
-        msg: Hello world
-
     - name: Run apt update
       apt:
         update_cache: yes
@@ -17,6 +10,12 @@
       apt:
         upgrade: dist  # Performs a full upgrade, including APT itself
 
+    - name: Install vlc
+      apt:
+        name:
+          - vlc
+        state: present
+
     - name: Install picamera
       apt:
         name:
@@ -24,13 +23,22 @@
         state: present
         install_recommends: no
 
-    - name: Install vlc
+    - name: Install pip
       apt:
         name:
-          - vlc
+          - python3-pip
         state: present
+        install_recommends: no
+
+    - name: install pyyaml
+      ansible.builtin.command: python3 -m pip install pyyaml --break-system-packages
 
     - name: Copy python files
       ansible.builtin.copy:
         src: snap.py
         dest: snap.py
+
+    - name: Copy camera configs
+      ansible.builtin.copy:
+        src: camera_configs.yaml
+        dest: camera_configs.yaml

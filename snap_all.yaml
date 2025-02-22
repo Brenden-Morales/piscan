@@ -1,5 +1,16 @@
 - name: Take snapshots on cameras and then copy them to localhost
   hosts: cameras
   tasks:
-    - name: Take snapshot on cameras
-      command: rpicam-still -o long_exposure.jpg --shutter 3000000 --gain 1
+    - name: Take snapshot with python
+      ansible.builtin.script: snap.py
+      args:
+        executable: python3
+      register: python_snap
+
+    - debug: msg="{{ python_snap.stdout }}"
+
+    - name: Fetch python snapshots from remotes
+      ansible.builtin.fetch:
+        src: image.jpg
+        dest: ./captures/image_{{inventory_hostname}}.jpg
+        flat: yes
