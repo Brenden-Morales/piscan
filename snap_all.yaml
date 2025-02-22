@@ -1,0 +1,5 @@
+- name: Take snapshots on cameras and then copy them to localhost
+  hosts: cameras
+  tasks:
+    - name: Take snapshot on cameras
+      command: rpicam-still -o long_exposure.jpg --shutter 3000000 --gain 1
