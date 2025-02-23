@@ -17,6 +17,11 @@
         src: socket_utils.py
         dest: socket_utils.py
 
+    - name: Copy python camera_utils.py
+      ansible.builtin.copy:
+        src: camera_utils.py
+        dest: camera_utils.py
+
     - name: Copy camera configs
       ansible.builtin.copy:
         src: camera_configs.yaml
