@@ -1,4 +1,4 @@
-- name: My first play
+- name: Install Everything
   become: yes # Runs commands with sudo
   hosts: cameras
   tasks:

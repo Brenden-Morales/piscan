@@ -15,10 +15,11 @@ def start_server(host):
             with conn:
                 print(f"Connected by {addr}")
                 while True:
-                    data = conn.recv(1024)
+                    data = SocketUtils.receive_message(conn)
                     if not data:
                         break
-                    conn.sendall(data)  # Echo the received data back
+                    print("received message: {}".format(data.decode()))
+                    SocketUtils.send_message(conn, data)  # Echo the received data back
     except KeyboardInterrupt:
         print("\nServer interrupted by user. Shutting down.")
     finally:

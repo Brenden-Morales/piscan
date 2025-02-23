@@ -9,11 +9,11 @@ def start_client(host):
         sock.connect((host, port))
         # Send a message to the server
         message = "Hello, server!"
-        SocketUtils.send_message(sock, message)
+        SocketUtils.send_message(sock, message.encode())
         print("Sent to camera server {}:{}: {}".format(host, port, message))
         # Receive response from the server
         data = SocketUtils.receive_message(sock)
-        print("Received from server {}:{}: {}".format(host, port, data))
+        print("Received from server {}:{}: {}".format(host, port, data.decode()))
 
 if __name__ == '__main__':
     start_client("picam0.local")

@@ -5,7 +5,7 @@ class SocketUtils:
     @staticmethod
     def send_message(sock, message):
         # Encode message and get its length
-        encoded_msg = message.encode()
+        encoded_msg = message
         msg_length = len(encoded_msg)
         # Pack the length into 4 bytes using network byte order
         sock.sendall(struct.pack('!I', msg_length))
@@ -25,4 +25,4 @@ class SocketUtils:
             if not packet:
                 break
             data.extend(packet)
-        return data.decode()
+        return data
