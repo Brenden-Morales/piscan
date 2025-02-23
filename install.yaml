@@ -33,10 +33,20 @@
     - name: install pyyaml
       ansible.builtin.command: python3 -m pip install pyyaml --break-system-packages
 
-    - name: Copy python files
+    - name: Copy python snap.py
       ansible.builtin.copy:
         src: snap.py
         dest: snap.py
+
+    - name: Copy python camera_server.py
+      ansible.builtin.copy:
+        src: camera_server.py
+        dest: camera_server.py
+
+    - name: Copy python socket_utils.py
+      ansible.builtin.copy:
+        src: socket_utils.py
+        dest: socket_utils.py
 
     - name: Copy camera configs
       ansible.builtin.copy:

@@ -1,0 +1,16 @@
+- name: Start camera servers
+  hosts: cameras
+  tasks:
+    - name: Copy camera configs
+      ansible.builtin.copy:
+        src: camera_configs.yaml
+        dest: camera_configs.yaml
+
+    - name: Copy python camera_server.py
+      ansible.builtin.copy:
+        src: camera_server.py
+        dest: camera_server.py
+
+    - name: Fire and forget camera_server.py
+      command: python3 camera_server.py
+      poll: 0         # don't wait for the job to complete
