@@ -6,6 +6,8 @@ def start_client(host):
 
     # Create a TCP/IP socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(10)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)
         sock.connect((host, port))
         # Send a message to the server
         message = "Hello, server!"
@@ -14,6 +16,8 @@ def start_client(host):
         # Receive response from the server
         data = SocketUtils.receive_message(sock)
         print("Received from server {}:{}: {}".format(host, port, data.decode()))
+        SocketUtils.send_message(sock, SocketUtils.TAKE_SNAPSHOT.encode())
+        data = SocketUtils.receive_message(sock)
 
 if __name__ == '__main__':
     start_client("picam0.local")
