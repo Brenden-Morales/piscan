@@ -26,9 +26,11 @@ def start_server(host):
                     message = data.decode()
                     print("received message: {}".format(message))
                     if message == SocketUtils.TAKE_SNAPSHOT:
-                        camera_array = picam2.capture_buffer().tobytes()
+                        picam2.capture_file("snap.jpg")
+                        with open("snap.jpg", 'rb') as file:
+                            byte_array = bytearray(file.read())
                         print('Captured JPEG Buffer')
-                        SocketUtils.send_message(conn, camera_array)
+                        SocketUtils.send_message(conn, byte_array)
                         print('Sent JPEG Buffer')
                     else:
                         SocketUtils.send_message(conn, data)  # Echo the received data back
