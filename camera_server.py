@@ -3,6 +3,8 @@ from camera_utils import CameraUtils
 import socket
 from picamera2 import Picamera2
 import traceback
+import json
+import time
 
 picam2 = None
 
@@ -32,6 +34,18 @@ def start_server(host):
                         print('Captured JPEG Buffer')
                         SocketUtils.send_message(conn, byte_array)
                         print('Sent JPEG Buffer')
+                    elif message == SocketUtils.GET_CONTROLS:
+                        SocketUtils.send_message(conn, json.dumps(picam2.camera_controls).encode())
+                        print('Sent controls')
+                    elif message.startswith(SocketUtils.SET_CONTROLS):
+                        print('SETTING CONTROLS')
+                        controls = message.removeprefix(SocketUtils.SET_CONTROLS)
+                        controls = json.loads(controls)
+                        for control_name, control_value in controls.items():
+                            control_obj = {control_name: control_value}
+                            print(control_obj)
+                            picam2.set_controls(control_obj)
+                        SocketUtils.send_message(conn, "controls set".encode())
                     else:
                         SocketUtils.send_message(conn, data)  # Echo the received data back
     except KeyboardInterrupt:

@@ -4,6 +4,8 @@ import math
 
 class SocketUtils:
     TAKE_SNAPSHOT = "SNAPSHOT"
+    GET_CONTROLS = "GET_CONTROLS"
+    SET_CONTROLS = "SET_CONTROLS"
     chunk_size = 1024 * 4
 
     @staticmethod
