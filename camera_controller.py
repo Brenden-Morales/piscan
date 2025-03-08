@@ -1,8 +1,9 @@
 import socket
 import json
 from socket_utils import SocketUtils
+import os
 
-CONTROLS_TO_IGNORE = ["StatsOutputEnable", "ScalerCrop", "NoiseReductionMode", "FrameDurationLimits", "ColourGains"]
+ENABLED_CONTROLS = ["AnalogueGain", "ExposureTime", 'AwbMode']
 
 class CameraController:
     def __init__(self, host, port):
@@ -13,7 +14,7 @@ class CameraController:
 
     def send_then_receive(self, message):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(10)
+            sock.settimeout(30)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)
             sock.connect((self.host, self.port))
             SocketUtils.send_message(sock, message.encode())
@@ -25,13 +26,11 @@ class CameraController:
         controls_string = self.send_then_receive(SocketUtils.GET_CONTROLS).decode()
         print("Received controls from camera server {}:{}".format(self.host, self.port))
         controls = json.loads(controls_string)
-        for control_to_ignore in CONTROLS_TO_IGNORE:
-            del controls[control_to_ignore]
+        good_controls = {}
         for control_name, control_values in controls.items():
-            control_value = control_values[-1]
-            if control_value is None:
-                control_values[-1] = 0
-        return controls
+            if control_name in ENABLED_CONTROLS:
+                good_controls[control_name] = control_values
+        return good_controls
 
     def set_controls(self, controls):
         print('Setting controls')
@@ -40,11 +39,15 @@ class CameraController:
         set_controls_result = self.send_then_receive(set_controls_string).decode()
         print("Set controls to camera server {}:{}".format(self.host, self.port))
 
-    def take_snap(self):
+    def take_snap(self, useHistory = False):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             data = self.send_then_receive(SocketUtils.TAKE_SNAPSHOT)
             print("Received data from camera server {}:{}".format(self.host, self.port))
             file_path = "captures/{}_snap.jpg".format(self.host)
+            if useHistory:
+                project_dir = "captures/{}".format(self.host)
+                dir_size = len(os.listdir(project_dir))
+                file_path = "captures/{}/{}.jpg".format(self.host, dir_size)
             with open(file_path, "wb") as binary_file:
                 # Write bytes to file
                 binary_file.write(data)

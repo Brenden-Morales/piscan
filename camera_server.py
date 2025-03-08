@@ -45,6 +45,8 @@ def start_server(host):
                             control_obj = {control_name: control_value}
                             print(control_obj)
                             picam2.set_controls(control_obj)
+                        # picam2.set_controls({"ColourGains": (6, 6)})
+                        picam2.set_controls({"AwbEnable": True})
                         SocketUtils.send_message(conn, "controls set".encode())
                     else:
                         SocketUtils.send_message(conn, data)  # Echo the received data back
@@ -67,7 +69,7 @@ if __name__ == '__main__':
     Picamera2.set_logging(Picamera2.ERROR)
     picam2 = Picamera2()
     picam2.set_logging(Picamera2.ERROR)
-    camera_config = picam2.create_still_configuration(transform=camera_transform)
+    camera_config = picam2.create_still_configuration(transform=camera_transform, )
     picam2.configure(camera_config)
     picam2.start()
     start_server(socket.gethostname() + ".local")
