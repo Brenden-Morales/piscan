@@ -1,3 +1,9 @@
+ssh-keygen -t ed25519 -C "email"
+ssh-copy-id picam@picam0.local
+ssh-copy-id picam@picam1.local
+ssh-copy-id picam@picam2.local
+ssh-copy-id picam@picam3.local
+
 ansible-playbook -i inventory.yaml install.yaml\
 ansible-playbook -i inventory.yaml snap_all.yaml\
 ansible-playbook -i inventory.yaml update_python.yaml
