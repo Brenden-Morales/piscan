@@ -7,6 +7,10 @@ from PyInquirer import prompt, Separator
 from cli_prompts import CliPrompts
 from camera_controller import CameraController
 import concurrent.futures
+import os
+
+if not os.path.exists("./captures"):
+    os.makedirs("./captures")
 
 camera_controllers = []
 def create_camera_controllers(hosts):

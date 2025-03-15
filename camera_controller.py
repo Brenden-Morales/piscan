@@ -14,7 +14,7 @@ class CameraController:
 
     def send_then_receive(self, message):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(30)
+            sock.settimeout(600)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)
             sock.connect((self.host, self.port))
             SocketUtils.send_message(sock, message.encode())
