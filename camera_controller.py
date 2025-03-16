@@ -46,6 +46,8 @@ class CameraController:
             file_path = "captures/{}_snap.jpg".format(self.host)
             if useHistory:
                 project_dir = "captures/{}".format(self.host)
+                if not os.path.exists(project_dir):
+                    os.makedirs(project_dir)
                 dir_size = len(os.listdir(project_dir))
                 file_path = "captures/{}/{}.jpg".format(self.host, dir_size)
             with open(file_path, "wb") as binary_file:
