@@ -7,8 +7,9 @@ name = "pypi"
 pyyaml = "*"
 pyinquirer = "*"
 ansible = "*"
+pybluez2 = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.13"
+python_version = "3.10"
