@@ -24,6 +24,7 @@ BluetoothSerial SerialBT;
 void setup() {
   Serial.begin(115200);
   SerialBT.begin(device_name);  //Bluetooth device name
+  pinMode(14, OUTPUT);    // sets the digital pin 13 as output
   //SerialBT.deleteAllBondedDevices(); // Uncomment this to delete paired devices; Must be called after begin
   Serial.printf("The device with name \"%s\" is started.\nNow you can pair it with Bluetooth!\n", device_name.c_str());
 }
@@ -37,6 +38,11 @@ void loop() {
     SerialBT.readBytes((char*)&receivedInt, sizeof(receivedInt));  // Read 4 bytes into int
     Serial.print("Received Integer: ");
     Serial.println(receivedInt);
+    for(int i = 0; i < receivedInt; i ++) {
+      digitalWrite(14, HIGH);
+      delay(100);
+      digitalWrite(14, LOW);
+      delay(100);
+    }
   }
-  delay(20);
 }
