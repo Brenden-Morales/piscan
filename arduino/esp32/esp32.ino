@@ -7,7 +7,7 @@
 
 #include "BluetoothSerial.h"
 
-String device_name = "ESP32-BT-Slave";
+String device_name = "ESP32_Stepper";
 
 // Check if Bluetooth is available
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -33,7 +33,10 @@ void loop() {
     SerialBT.write(Serial.read());
   }
   if (SerialBT.available()) {
-    Serial.write(SerialBT.read());
+    int receivedInt;
+    SerialBT.readBytes((char*)&receivedInt, sizeof(receivedInt));  // Read 4 bytes into int
+    Serial.print("Received Integer: ");
+    Serial.println(receivedInt);
   }
   delay(20);
 }
