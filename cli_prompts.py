@@ -91,6 +91,9 @@ class CliPrompts:
         print(control_name)
         if control_name == "Back":
             return (None, None)
+        elif control_name == "AeEnable":
+            value = CliPrompts.true_false_prompt()
+            return (control_name, value)
         else:
             value = CliPrompts.value_range_prompt(camera_controls[control_name])
             return (control_name, value)
@@ -106,6 +109,7 @@ class CliPrompts:
                     'Take snapshot',
                     'Start project',
                     'Set Controls',
+                    'List Controls',
                     'Select Hosts',
                     'Quit'
                 ]

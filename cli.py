@@ -8,6 +8,7 @@ from cli_prompts import CliPrompts
 from camera_controller import CameraController
 import concurrent.futures
 import os
+from pprint import pprint
 
 if not os.path.exists("./captures"):
     os.makedirs("./captures")
@@ -46,6 +47,22 @@ while op != "Quit":
             for camera_controller in camera_controllers:
                 camera_controller.controls[control_name][-1] = control_value
                 camera_controller.set_controls(camera_controller.controls)
+    elif op == "List Controls":
+        print("List Controls!")
+        combined_controls = {}
+        for camera_controller in camera_controllers:
+            all_camera_controls = camera_controller.get_all_controls()
+            for control_name, control_value in all_camera_controls.items():
+                if control_name not in combined_controls:
+                    combined_controls[control_name] = [control_value[-1]]
+                else:
+                    combined_controls[control_name].append(control_value[-1])
+            pprint(all_camera_controls, indent=4)
+            print()
+            print()
+        print("All configs combined:")
+        pprint(combined_controls, indent=4)
+
     elif op == "Start project":
         project_prompt = ""
         while project_prompt != "Quit":

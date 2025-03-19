@@ -3,13 +3,13 @@ import json
 from socket_utils import SocketUtils
 import os
 
-ENABLED_CONTROLS = ["AnalogueGain", "ExposureTime", 'AwbMode']
+ENABLED_CONTROLS = ["AnalogueGain", "ExposureTime", 'AwbMode', 'AeEnable']
 
 class CameraController:
     def __init__(self, host, port):
         self.host = host
         self.port = port
-        self.controls = self.get_controls()
+        self.controls = self.get_good_controls()
 
 
     def send_then_receive(self, message):
@@ -21,11 +21,15 @@ class CameraController:
             print("Sent {} to camera server {}:{}".format(message, self.host, self.port))
             return SocketUtils.receive_message(sock)
 
-    def get_controls(self):
-        print('Getting controls')
+    def get_all_controls(self):
+        print('Getting all controls')
         controls_string = self.send_then_receive(SocketUtils.GET_CONTROLS).decode()
         print("Received controls from camera server {}:{}".format(self.host, self.port))
         controls = json.loads(controls_string)
+        return controls
+
+    def get_good_controls(self):
+        controls = self.get_all_controls()
         good_controls = {}
         for control_name, control_values in controls.items():
             if control_name in ENABLED_CONTROLS:

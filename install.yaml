@@ -10,12 +10,6 @@
       apt:
         upgrade: dist  # Performs a full upgrade, including APT itself
 
-    - name: Install vlc
-      apt:
-        name:
-          - vlc
-        state: present
-
     - name: Install picamera
       apt:
         name:
