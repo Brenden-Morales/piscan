@@ -111,6 +111,7 @@ class CliPrompts:
                     'Set Controls',
                     'List Controls',
                     'Select Hosts',
+                    'MAGIC',
                     'Quit'
                 ]
             }
