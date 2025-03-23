@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PiScan</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+        }
+
+        #content {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            background-color: #f0f0f0;
+            font-family: sans-serif;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .tab-content {
+            flex: 1; /* fills remaining space */
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        .tab-content img {
+            flex: 1;
+            max-width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+<div id="content">
+    <div>
+        <label for="awb-mode">AwbMode:</label>
+        <input type="range" id="awb-mode" name="number" min="0" max="7" value="0" step="1">
+        <span id="awb-value">0</span>
+    </div>
+    <div>
+        <label for="exposure-input">ExposureTime:</label>
+        <input type="number" id="exposure-input" value="20000" name="number">
+    </div>
+    <div>
+        <button type="button" id="settings-button">Apply Settings</button>
+    </div>
+    <div>
+        <button type="button" id="snap-button">SNAP</button>
+    </div>
+    <div>
+        <div class="tabs">
+            <button class="tab-button" onclick="showTab(0)">picam0</button>
+            <button class="tab-button" onclick="showTab(1)">picam1</button>
+            <button class="tab-button" onclick="showTab(2)">picam2</button>
+            <button class="tab-button" onclick="showTab(3)">picam3</button>
+        </div>
+
+        <div class="tab-content" id="tab-0">
+            picam0
+            <img id="picam0-image" src="/static/picam0.local_snap.jpg" alt="picam0">
+        </div>
+        <div class="tab-content" id="tab-1">
+            picam1
+            <img id="picam1-image" src="/static/picam1.local_snap.jpg" alt="picam1">
+        </div>
+        <div class="tab-content" id="tab-2">
+            picam2
+            <img id="picam2-image" src="/static/picam2.local_snap.jpg" alt="picam2">
+        </div>
+        <div class="tab-content" id="tab-3">
+            picam3
+            <img id="picam3-image" src="/static/picam3.local_snap.jpg" alt="picam3">
+        </div>
+    </div>
+</div>
+</body>
+</html>
+
+<script>
+    const awb = document.getElementById('awb-mode');
+    const awbValue = document.getElementById('awb-value');
+    awb.addEventListener('input', function () {
+        awbValue.textContent = this.value;
+    });
+    const exposureInput = document.getElementById('exposure-input');
+
+    document.getElementById('settings-button').addEventListener('click', function () {
+        console.log('Button was clicked!');
+        console.log(awb.value);
+        console.log(exposureInput.value);
+
+        fetch("/api/settings", {
+            method: "PUT", // or "POST"
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                AwbMode: awb.value,
+                ExposureTime: exposureInput.value
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            console.log("Success:", result);
+        })
+        .catch(error => {
+            console.error("Error:", error);
+        });
+    });
+
+    document.getElementById('snap-button').addEventListener('click', function () {
+        fetch("/api/snap", {
+            method: "PUT", // or "POST"
+            headers: {
+                "Content-Type": "application/json"
+            }
+        })
+        .then(response => response.json())
+        .then(result => {
+            console.log("Success:", result);
+            for(let i = 0; i < 4; i ++) {
+                const img = document.getElementById(`picam${i}-image`);
+                const baseUrl = `/static/picam${i}.local_snap.jpg`;
+                const cacheBuster = new Date().getTime(); // or Math.random()
+                img.src = `${baseUrl}?t=${cacheBuster}`;
+            }
+
+        })
+        .catch(error => {
+            console.error("Error:", error);
+        });
+    });
+
+    function showTab(index) {
+        const tabs = document.querySelectorAll(".tab-content");
+        tabs.forEach((tab, i) => {
+            if (i === index) {
+                tab.classList.add("active");
+            } else {
+                tab.classList.remove("active");
+            }
+        });
+    }
+
+    // Optionally show the first tab on load
+    showTab(0);
+</script>

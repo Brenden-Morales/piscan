@@ -8,6 +8,9 @@ pyyaml = "*"
 pyinquirer = "*"
 ansible = "*"
 pybluez2 = "*"
+fastapi = "*"
+uvicorn = "*"
+pydantic = "*"
 
 [dev-packages]
 

@@ -104,7 +104,7 @@ try:
                     for future in concurrent.futures.as_completed(futures):
                         future.result()
 except:
-    print("Broken pipe: The clie may have disconnected before receiving all the data.")
+    print("Broken pipe: The cli may have disconnected before receiving all the data.")
     print(traceback.format_exc())
 finally:
     print("closing camera controllers")

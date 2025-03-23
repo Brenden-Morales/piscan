@@ -12,5 +12,6 @@ ssh picam@picam0.local\
 python3 camera_server.py
 
 python3 cli.py
+uvicorn ui_server:app --reload
 
 rpicam-vid -t 0 --inline -o - | cvlc stream:///dev/stdin --sout '#rtp{sdp=rtsp://:8000/}' :demux=h264

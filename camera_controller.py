@@ -43,16 +43,16 @@ class CameraController:
         set_controls_result = self.send_then_receive(set_controls_string).decode()
         print("Set controls to camera server {}:{}".format(self.host, self.port))
 
-    def take_snap(self, useHistory = False):
+    def take_snap(self, useHistory = False, file_path = "captures/{}_snap.jpg"):
         data = self.send_then_receive(SocketUtils.TAKE_SNAPSHOT)
         print("Received data from camera server {}:{}".format(self.host, self.port))
-        file_path = "captures/{}_snap.jpg".format(self.host)
+        file_path = file_path.format(self.host)
         if useHistory:
             project_dir = "captures/{}".format(self.host)
             if not os.path.exists(project_dir):
                 os.makedirs(project_dir)
             dir_size = len(os.listdir(project_dir))
-            file_path = "captures/{}/{}.jpg".format(self.host, dir_size)
+            file_path = file_path.format(self.host, dir_size)
         with open(file_path, "wb") as binary_file:
             # Write bytes to file
             binary_file.write(data)
