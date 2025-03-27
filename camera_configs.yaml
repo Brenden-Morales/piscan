@@ -1,4 +1,8 @@
 - host: picam0
+  rotation: 180
 - host: picam1
+  rotation: 180
 - host: picam2
+  rotation: 180
 - host: picam3
+  rotation: 180

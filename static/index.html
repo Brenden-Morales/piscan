@@ -43,6 +43,29 @@
             height: 100%;
             object-fit: contain;
         }
+
+        .image-container {
+            position: relative;
+            display: inline-block;
+            cursor: crosshair;
+        }
+
+        .zoom-target {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .zoom-lens {
+            position: absolute;
+            border: 2px solid #000;
+            width: 200px;
+            height: 200px;
+            display: none;
+            background-repeat: no-repeat;
+            pointer-events: none;
+        }
+
     </style>
 </head>
 <body>
@@ -72,19 +95,31 @@
 
         <div class="tab-content" id="tab-0">
             picam0
-            <img id="picam0-image" src="/static/picam0.local_snap.jpg" alt="picam0">
+            <div class="image-container" onclick="zoomImage(event, 0)">
+                <img id="picam0-image" class="zoom-target" src="/static/picam0.local_snap.jpg" alt="Zoomable Image">
+                <div id="picam0-zoom-lens" class="zoom-lens"></div>
+            </div>
         </div>
         <div class="tab-content" id="tab-1">
             picam1
-            <img id="picam1-image" src="/static/picam1.local_snap.jpg" alt="picam1">
+            <div class="image-container" onclick="zoomImage(event, 1)">
+                <img id="picam1-image" class="zoom-target" src="/static/picam1.local_snap.jpg" alt="Zoomable Image">
+                <div id="picam1-zoom-lens" class="zoom-lens"></div>
+            </div>
         </div>
         <div class="tab-content" id="tab-2">
             picam2
-            <img id="picam2-image" src="/static/picam2.local_snap.jpg" alt="picam2">
+            <div class="image-container" onclick="zoomImage(event, 2)">
+                <img id="picam2-image" class="zoom-target" src="/static/picam2.local_snap.jpg" alt="Zoomable Image">
+                <div id="picam2-zoom-lens" class="zoom-lens"></div>
+            </div>
         </div>
         <div class="tab-content" id="tab-3">
             picam3
-            <img id="picam3-image" src="/static/picam3.local_snap.jpg" alt="picam3">
+            <div class="image-container" onclick="zoomImage(event, 3)">
+                <img id="picam3-image" class="zoom-target" src="/static/picam3.local_snap.jpg" alt="Zoomable Image">
+                <div id="picam3-zoom-lens" class="zoom-lens"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -159,4 +194,36 @@
 
     // Optionally show the first tab on load
     showTab(0);
+
+
+    function zoomImage(e, index) {
+        const lens = document.getElementById(`picam${index}-zoom-lens`);
+        const img = document.getElementById(`picam${index}-image`);
+
+        if(lens.style.display === "block") {
+            lens.style.display = "none";
+            return;
+        }
+
+        const rect = img.getBoundingClientRect();
+
+        const lensSize = 200;
+        const zoomLevel = 2;
+
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+
+        // Set background image and scaling
+        lens.style.backgroundImage = `url(${img.src})`;
+        lens.style.backgroundSize = `${img.width * zoomLevel}px ${img.height * zoomLevel}px`;
+
+        // Position the lens
+        lens.style.left = `${x - lensSize / 2}px`;
+        lens.style.top = `${y - lensSize / 2}px`;
+        lens.style.backgroundPosition = `-${x * zoomLevel - lensSize / 2}px -${y * zoomLevel - lensSize / 2}px`;
+
+        // Show the lens
+        lens.style.display = "block";
+    }
 </script>
