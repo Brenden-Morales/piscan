@@ -48,15 +48,18 @@ class CameraController:
         print("Received data from camera server {}:{}".format(self.host, self.port))
         file_path = file_path.format(self.host)
         if useHistory:
+            print("use history!")
             project_dir = "captures/{}".format(self.host)
             if not os.path.exists(project_dir):
                 os.makedirs(project_dir)
             dir_size = len(os.listdir(project_dir))
-            file_path = file_path.format(self.host, dir_size)
+            file_path = "captures/{}/{}.jpg".format(self.host, dir_size)
         with open(file_path, "wb") as binary_file:
             # Write bytes to file
             binary_file.write(data)
         print("File written to: {}".format(file_path))
+        return file_path
+
 
     def close_socket(self):
         print("closing socket to {}".format(self.host))

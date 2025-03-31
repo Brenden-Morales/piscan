@@ -63,6 +63,18 @@ def update_settings():
             future.result()
     return {"message": "SUCCESS"}
 
+@app.put("/api/capture")
+def update_settings():
+    print("capture")
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        futures = []
+        for camera_controller in camera_controllers:
+            futures.append(executor.submit(camera_controller.take_snap, True ))
+        # Wait for all futures to complete
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+    return {"message": "SUCCESS"}
+
 # UI route
 @app.get("/", response_class=HTMLResponse)
 def read_root():

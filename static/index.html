@@ -84,6 +84,7 @@
     </div>
     <div>
         <button type="button" id="snap-button">SNAP</button>
+        <button type="button" id="capture-button">CAPTURE</button>
     </div>
     <div>
         <div class="tabs">
@@ -158,27 +159,34 @@
         });
     });
 
-    document.getElementById('snap-button').addEventListener('click', function () {
-        fetch("/api/snap", {
+    let snap_all_cams = function(url = "/api/snap") {
+        fetch(url, {
             method: "PUT", // or "POST"
             headers: {
                 "Content-Type": "application/json"
             }
         })
-        .then(response => response.json())
-        .then(result => {
-            console.log("Success:", result);
-            for(let i = 0; i < 4; i ++) {
-                const img = document.getElementById(`picam${i}-image`);
-                const baseUrl = `/static/picam${i}.local_snap.jpg`;
-                const cacheBuster = new Date().getTime(); // or Math.random()
-                img.src = `${baseUrl}?t=${cacheBuster}`;
-            }
+            .then(response => response.json())
+            .then(result => {
+                console.log("Success:", result);
+                for(let i = 0; i < 4; i ++) {
+                    const img = document.getElementById(`picam${i}-image`);
+                    const baseUrl = `/static/picam${i}.local_snap.jpg`;
+                    const cacheBuster = new Date().getTime(); // or Math.random()
+                    img.src = `${baseUrl}?t=${cacheBuster}`;
+                }
 
-        })
-        .catch(error => {
-            console.error("Error:", error);
-        });
+            })
+            .catch(error => {
+                console.error("Error:", error);
+            });
+    }
+
+    document.getElementById('snap-button').addEventListener('click', function () {
+        snap_all_cams("/api/snap");
+    });
+    document.getElementById('capture-button').addEventListener('click', function() {
+       snap_all_cams("/api/capture");
     });
 
     function showTab(index) {
