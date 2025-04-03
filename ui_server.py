@@ -67,7 +67,7 @@ def update_settings():
     with concurrent.futures.ProcessPoolExecutor() as executor:
         futures = []
         for camera_controller in camera_controllers:
-            futures.append(executor.submit(camera_controller.take_snap, True ))
+            futures.append(executor.submit(camera_controller.take_snap, True, "captures/{}_snap.jpg" ))
         # Wait for all futures to complete
         for future in concurrent.futures.as_completed(futures):
             future.result()
