@@ -1,0 +1,61 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+}
+
+#content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    background-color: #f0f0f0;
+    font-family: sans-serif;
+}
+
+.tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.tab-content {
+    flex: 1; /* fills remaining space */
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.tab-content.active {
+    display: flex;
+}
+
+.tab-content img {
+    flex: 1;
+    max-width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.image-container {
+    position: relative;
+    display: inline-block;
+    cursor: crosshair;
+}
+
+.zoom-target {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+.zoom-lens {
+    position: absolute;
+    border: 2px solid #000;
+    width: 200px;
+    height: 200px;
+    display: none;
+    background-repeat: no-repeat;
+    pointer-events: none;
+}

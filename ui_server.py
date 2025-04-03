@@ -33,8 +33,6 @@ app = FastAPI()
 # Serve static files (like index.html, JS, CSS)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Serve static files (like index.html, JS, CSS)
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Simple API endpoint
 @app.get("/api/greet")

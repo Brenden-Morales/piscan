@@ -3,79 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <title>PiScan</title>
-    <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            width: 100%;
-        }
-
-        #content {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            width: 100%;
-            background-color: #f0f0f0;
-            font-family: sans-serif;
-        }
-
-        .tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .tab-content {
-            flex: 1; /* fills remaining space */
-            display: none;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .tab-content.active {
-            display: flex;
-        }
-
-        .tab-content img {
-            flex: 1;
-            max-width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
-
-        .image-container {
-            position: relative;
-            display: inline-block;
-            cursor: crosshair;
-        }
-
-        .zoom-target {
-            max-width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        .zoom-lens {
-            position: absolute;
-            border: 2px solid #000;
-            width: 200px;
-            height: 200px;
-            display: none;
-            background-repeat: no-repeat;
-            pointer-events: none;
-        }
-
-    </style>
+    <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
 <div id="content">
-    <div>
+    <div id="awb-settings">
         <label for="awb-mode">AwbMode:</label>
         <input type="range" id="awb-mode" name="number" min="0" max="7" value="0" step="1">
         <span id="awb-value">0</span>
     </div>
-    <div>
+    <div id="exposure-settings">
         <label for="exposure-input">ExposureTime:</label>
         <input type="number" id="exposure-input" value="20000" name="number">
     </div>
@@ -88,36 +25,36 @@
     </div>
     <div>
         <div class="tabs">
-            <button class="tab-button" onclick="showTab(0)">picam0</button>
-            <button class="tab-button" onclick="showTab(1)">picam1</button>
-            <button class="tab-button" onclick="showTab(2)">picam2</button>
-            <button class="tab-button" onclick="showTab(3)">picam3</button>
+            <button class="tab-button">picam0</button>
+            <button class="tab-button">picam1</button>
+            <button class="tab-button">picam2</button>
+            <button class="tab-button">picam3</button>
         </div>
 
         <div class="tab-content" id="tab-0">
             picam0
-            <div class="image-container" onclick="zoomImage(event, 0)">
+            <div class="image-container">
                 <img id="picam0-image" class="zoom-target" src="/static/picam0.local_snap.jpg" alt="Zoomable Image">
                 <div id="picam0-zoom-lens" class="zoom-lens"></div>
             </div>
         </div>
         <div class="tab-content" id="tab-1">
             picam1
-            <div class="image-container" onclick="zoomImage(event, 1)">
+            <div class="image-container">
                 <img id="picam1-image" class="zoom-target" src="/static/picam1.local_snap.jpg" alt="Zoomable Image">
                 <div id="picam1-zoom-lens" class="zoom-lens"></div>
             </div>
         </div>
         <div class="tab-content" id="tab-2">
             picam2
-            <div class="image-container" onclick="zoomImage(event, 2)">
+            <div class="image-container">
                 <img id="picam2-image" class="zoom-target" src="/static/picam2.local_snap.jpg" alt="Zoomable Image">
                 <div id="picam2-zoom-lens" class="zoom-lens"></div>
             </div>
         </div>
         <div class="tab-content" id="tab-3">
             picam3
-            <div class="image-container" onclick="zoomImage(event, 3)">
+            <div class="image-container">
                 <img id="picam3-image" class="zoom-target" src="/static/picam3.local_snap.jpg" alt="Zoomable Image">
                 <div id="picam3-zoom-lens" class="zoom-lens"></div>
             </div>
@@ -127,37 +64,15 @@
 </body>
 </html>
 
-<script>
-    const awb = document.getElementById('awb-mode');
-    const awbValue = document.getElementById('awb-value');
-    awb.addEventListener('input', function () {
-        awbValue.textContent = this.value;
-    });
-    const exposureInput = document.getElementById('exposure-input');
+<script type="module">
+    import {CameraSettings} from "/static/settings.js";
+    let camSettings = new CameraSettings(
+        document.getElementById('awb-settings'),
+        document.getElementById('exposure-settings'),
+        document.getElementById('settings-button')
+    )
 
-    document.getElementById('settings-button').addEventListener('click', function () {
-        console.log('Button was clicked!');
-        console.log(awb.value);
-        console.log(exposureInput.value);
 
-        fetch("/api/settings", {
-            method: "PUT", // or "POST"
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                AwbMode: awb.value,
-                ExposureTime: exposureInput.value
-            })
-        })
-        .then(response => response.json())
-        .then(result => {
-            console.log("Success:", result);
-        })
-        .catch(error => {
-            console.error("Error:", error);
-        });
-    });
 
     let snap_all_cams = function(url = "/api/snap") {
         fetch(url, {
@@ -189,7 +104,7 @@
        snap_all_cams("/api/capture");
     });
 
-    function showTab(index) {
+    let showTab = function(index) {
         const tabs = document.querySelectorAll(".tab-content");
         tabs.forEach((tab, i) => {
             if (i === index) {
@@ -203,8 +118,13 @@
     // Optionally show the first tab on load
     showTab(0);
 
+    //attach to elements
+    document.querySelectorAll(".tab-button").forEach((element, index) => {
+        element.addEventListener('click', showTab.bind(this, index))
+    })
 
-    function zoomImage(e, index) {
+
+    let zoomImage = function(index, e) {
         const lens = document.getElementById(`picam${index}-zoom-lens`);
         const img = document.getElementById(`picam${index}-image`);
 
@@ -234,4 +154,9 @@
         // Show the lens
         lens.style.display = "block";
     }
+
+    //attach to elements
+    document.querySelectorAll(".image-container").forEach((element, index) => {
+        element.addEventListener('click', zoomImage.bind(this, index))
+    })
 </script>
