@@ -7,56 +7,85 @@
 </head>
 <body>
 <div id="content">
-    <div id="awb-settings">
-        <label for="awb-mode">AwbMode:</label>
-        <input type="range" id="awb-mode" name="number" min="0" max="7" value="0" step="1">
-        <span id="awb-value">0</span>
-    </div>
-    <div id="exposure-settings">
-        <label for="exposure-input">ExposureTime:</label>
-        <input type="number" id="exposure-input" value="20000" name="number">
-    </div>
-    <div>
-        <button type="button" id="settings-button">Apply Settings</button>
-    </div>
-    <div>
-        <button type="button" id="snap-button">SNAP</button>
-        <button type="button" id="capture-button">CAPTURE</button>
-    </div>
-    <div>
+    <div id="controls" style="position:absolute;z-index:100;right:0px;background-color:rgba(255,255,255,0.5)">
+        <div id="awb-settings">
+            <label for="awb-mode">AwbMode:</label>
+            <input type="range" id="awb-mode" name="number" min="0" max="7" value="0" step="1">
+            <span id="awb-value">0</span>
+        </div>
+        <div id="exposure-settings">
+            <label for="exposure-input">ExposureTime:</label>
+            <input type="number" id="exposure-input" value="20000" name="number">
+        </div>
+        <div>
+            <button type="button" id="settings-button">Apply Settings</button>
+        </div>
+        <div>
+            <button type="button" id="snap-button">SNAP</button>
+            <button type="button" id="capture-button">CAPTURE</button>
+        </div>
         <div class="tabs">
             <button class="tab-button">picam0</button>
             <button class="tab-button">picam1</button>
             <button class="tab-button">picam2</button>
             <button class="tab-button">picam3</button>
+            <button class="tab-button">picam4</button>
+            <button class="tab-button">picam5</button>
         </div>
-
+    </div>
+    <div>
         <div class="tab-content" id="tab-0">
-            picam0
+            <div style="position:absolute;background-color:rgba(255,255,255,0.4);z-index: 100">
+                picam0
+            </div>
             <div class="image-container">
                 <img id="picam0-image" class="zoom-target" src="/static/picam0.local_snap.jpg" alt="Zoomable Image">
                 <div id="picam0-zoom-lens" class="zoom-lens"></div>
             </div>
         </div>
         <div class="tab-content" id="tab-1">
-            picam1
+            <div style="position:absolute;background-color:rgba(255,255,255,0.4);z-index: 100">
+                picam1
+            </div>
             <div class="image-container">
                 <img id="picam1-image" class="zoom-target" src="/static/picam1.local_snap.jpg" alt="Zoomable Image">
                 <div id="picam1-zoom-lens" class="zoom-lens"></div>
             </div>
         </div>
         <div class="tab-content" id="tab-2">
-            picam2
+            <div style="position:absolute;background-color:rgba(255,255,255,0.4);z-index: 100">
+                picam2
+            </div>
             <div class="image-container">
                 <img id="picam2-image" class="zoom-target" src="/static/picam2.local_snap.jpg" alt="Zoomable Image">
                 <div id="picam2-zoom-lens" class="zoom-lens"></div>
             </div>
         </div>
         <div class="tab-content" id="tab-3">
-            picam3
+            <div style="position:absolute;background-color:rgba(255,255,255,0.4);z-index: 100">
+                picam3
+            </div>
             <div class="image-container">
                 <img id="picam3-image" class="zoom-target" src="/static/picam3.local_snap.jpg" alt="Zoomable Image">
                 <div id="picam3-zoom-lens" class="zoom-lens"></div>
+            </div>
+        </div>
+        <div class="tab-content" id="tab-4">
+            <div style="position:absolute;background-color:rgba(255,255,255,0.4);z-index: 100">
+                picam4
+            </div>
+            <div class="image-container">
+                <img id="picam4-image" class="zoom-target" src="/static/picam4.local_snap.jpg" alt="Zoomable Image">
+                <div id="picam4-zoom-lens" class="zoom-lens"></div>
+            </div>
+        </div>
+        <div class="tab-content" id="tab-5">
+            <div style="position:absolute;background-color:rgba(255,255,255,0.4);z-index: 100">
+                picam5
+            </div>
+            <div class="image-container">
+                <img id="picam5-image" class="zoom-target" src="/static/picam5.local_snap.jpg" alt="Zoomable Image">
+                <div id="picam5-zoom-lens" class="zoom-lens"></div>
             </div>
         </div>
     </div>

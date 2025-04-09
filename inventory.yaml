@@ -8,3 +8,7 @@ cameras:
       ansible_user: picam
     picam3.local:
       ansible_user: picam
+    picam4.local:
+      ansible_user: picam
+    picam5.local:
+      ansible_user: picam

@@ -3,6 +3,8 @@ ssh-copy-id picam@picam0.local\
 ssh-copy-id picam@picam1.local\
 ssh-copy-id picam@picam2.local\
 ssh-copy-id picam@picam3.local\
+ssh-copy-id picam@picam4.local\
+ssh-copy-id picam@picam5.local\
 
 ansible-playbook -i inventory.yaml install.yaml\
 ansible-playbook -i inventory.yaml snap_all.yaml\
