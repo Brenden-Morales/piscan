@@ -2,9 +2,11 @@ from socket_utils import SocketUtils
 from camera_utils import CameraUtils
 import socket
 from picamera2 import Picamera2
+import piexif
 import traceback
 import json
 import time
+import io
 
 picam2 = None
 
@@ -31,9 +33,26 @@ def start_server(host):
                         picam2.capture_file("snap.jpg")
                         with open("snap.jpg", 'rb') as file:
                             byte_array = bytearray(file.read())
-                        print('Captured JPEG Buffer')
-                        SocketUtils.send_message(conn, byte_array)
-                        print('Sent JPEG Buffer')
+                            # exif read?
+                            exif_dict = piexif.load(byte_array)
+                            # Get the existing 'Model' tag (tag ID 272 in the 0th IFD)
+                            model_tag = piexif.ImageIFD.Model
+                            existing_model = exif_dict["0th"].get(model_tag, b"").decode("utf-8", errors="ignore")
+                            # Append your custom string
+                            new_model = existing_model + "_" + host
+                            # Set the new value (must be bytes)
+                            exif_dict["0th"][model_tag] = new_model.encode("utf-8")
+                            # Dump the new EXIF data
+                            exif_bytes = piexif.dump(exif_dict)
+                            # Prepare a BytesIO buffer to receive the output
+                            output_stream = io.BytesIO()
+                            piexif.insert(exif_bytes, bytes(byte_array), output_stream)
+                            # Get the modified image data as bytes or bytearray
+                            new_image_bytes = output_stream.getvalue()
+                            new_image_bytearray = bytearray(new_image_bytes)
+                            print('Captured JPEG Buffer')
+                            SocketUtils.send_message(conn, new_image_bytearray)
+                            print('Sent JPEG Buffer')
                     elif message == SocketUtils.GET_CONTROLS:
                         SocketUtils.send_message(conn, json.dumps(picam2.camera_controls).encode())
                         print('Sent controls')

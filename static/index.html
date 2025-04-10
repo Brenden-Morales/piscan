@@ -113,7 +113,7 @@
             .then(response => response.json())
             .then(result => {
                 console.log("Success:", result);
-                for(let i = 0; i < 4; i ++) {
+                for(let i = 0; i < 6; i ++) {
                     const img = document.getElementById(`picam${i}-image`);
                     const baseUrl = `/static/picam${i}.local_snap.jpg`;
                     const cacheBuster = new Date().getTime(); // or Math.random()

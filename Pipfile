@@ -11,6 +11,7 @@ pybluez2 = "*"
 fastapi = "*"
 uvicorn = "*"
 pydantic = "*"
+piexif = "*"
 
 [dev-packages]
 
