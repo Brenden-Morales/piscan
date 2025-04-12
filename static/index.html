@@ -3,10 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <title>PiScan</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 <div id="content">
+    <div id="spinner-container" class="spinner-container hidden">
+        <div id="spinner" class="spinner"></div>
+    </div>
     <div id="controls" style="position:absolute;z-index:100;right:0px;background-color:rgba(255,255,255,0.5)">
         <div id="awb-settings">
             <label for="awb-mode">AwbMode:</label>
@@ -35,7 +38,7 @@
     </div>
     <div>
         <div class="tab-content" id="tab-0">
-            <div style="position:absolute;background-color:rgba(255,255,255,0.4);z-index: 100">
+            <div class="tab-label">
                 picam0
             </div>
             <div class="image-container">
@@ -44,7 +47,7 @@
             </div>
         </div>
         <div class="tab-content" id="tab-1">
-            <div style="position:absolute;background-color:rgba(255,255,255,0.4);z-index: 100">
+            <div class="tab-label">
                 picam1
             </div>
             <div class="image-container">
@@ -53,7 +56,7 @@
             </div>
         </div>
         <div class="tab-content" id="tab-2">
-            <div style="position:absolute;background-color:rgba(255,255,255,0.4);z-index: 100">
+            <div class="tab-label">
                 picam2
             </div>
             <div class="image-container">
@@ -62,7 +65,7 @@
             </div>
         </div>
         <div class="tab-content" id="tab-3">
-            <div style="position:absolute;background-color:rgba(255,255,255,0.4);z-index: 100">
+            <div class="tab-label">
                 picam3
             </div>
             <div class="image-container">
@@ -71,7 +74,7 @@
             </div>
         </div>
         <div class="tab-content" id="tab-4">
-            <div style="position:absolute;background-color:rgba(255,255,255,0.4);z-index: 100">
+            <div class="tab-label">
                 picam4
             </div>
             <div class="image-container">
@@ -80,7 +83,7 @@
             </div>
         </div>
         <div class="tab-content" id="tab-5">
-            <div style="position:absolute;background-color:rgba(255,255,255,0.4);z-index: 100">
+            <div class="tab-label">
                 picam5
             </div>
             <div class="image-container">
@@ -104,6 +107,7 @@
 
 
     let snap_all_cams = function(url = "/api/snap") {
+        showSpinner();
         fetch(url, {
             method: "PUT", // or "POST"
             headers: {
@@ -119,10 +123,11 @@
                     const cacheBuster = new Date().getTime(); // or Math.random()
                     img.src = `${baseUrl}?t=${cacheBuster}`;
                 }
-
+                hideSpinner();
             })
             .catch(error => {
                 console.error("Error:", error);
+                hideSpinner();
             });
     }
 
@@ -188,4 +193,12 @@
     document.querySelectorAll(".image-container").forEach((element, index) => {
         element.addEventListener('click', zoomImage.bind(this, index))
     })
+
+    function showSpinner() {
+        document.getElementById('spinner-container').classList.remove('hidden');
+    }
+
+    function hideSpinner() {
+        document.getElementById('spinner-container').classList.add('hidden');
+    }
 </script>
