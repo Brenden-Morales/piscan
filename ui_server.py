@@ -26,6 +26,9 @@ for camera_controller in camera_controllers:
     camera_controller.set_controls(camera_controllers[0].controls)
 
 class CameraSettings(BaseModel):
+    AfMode: int
+    AfTrigger: int
+    AnalogueGain: int
     AwbMode: int
     ExposureTime: int
 
@@ -46,6 +49,9 @@ def update_settings(settings: CameraSettings):
     for camera_controller in camera_controllers:
         camera_controller.controls['AwbMode'][-1] = settings.AwbMode
         camera_controller.controls['ExposureTime'][-1] = settings.ExposureTime
+        camera_controller.controls['AfMode'][-1] = settings.AfMode
+        camera_controller.controls['AfTrigger'][-1] = settings.AfTrigger
+        camera_controller.controls['AnalogueGain'][-1] = settings.AnalogueGain
         camera_controller.set_controls(camera_controller.controls)
     return {"message": "Hello from the API!"}
 

@@ -3,7 +3,7 @@ import json
 from socket_utils import SocketUtils
 import os
 
-ENABLED_CONTROLS = ["AnalogueGain", "ExposureTime", 'AwbMode', 'AeEnable']
+ENABLED_CONTROLS = ["AnalogueGain", "ExposureTime", 'AwbMode', 'AeEnable', 'AfMode', 'AfTrigger']
 
 class CameraController:
     def __init__(self, host, port):
@@ -26,6 +26,7 @@ class CameraController:
         controls_string = self.send_then_receive(SocketUtils.GET_CONTROLS).decode()
         print("Received controls from camera server {}:{}".format(self.host, self.port))
         controls = json.loads(controls_string)
+        print(controls)
         return controls
 
     def get_good_controls(self):
