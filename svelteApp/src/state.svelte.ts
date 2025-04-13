@@ -33,6 +33,10 @@ export enum AfSpeed {
 export const cameraSettingsState = $state({
     AwbMode: AwbModes.Auto,
     AfMode: AfModes.Auto,
-    AfTrigger: AfTriggers.Start
+    AfTrigger: AfTriggers.Start,
+    AfRange: AfRange.Normal,
+    AfSpeed: AfSpeed.Normal,
+    AnalogueGain: 1,
+    ExposureTime: 20000,
 });
 
