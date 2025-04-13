@@ -19,6 +19,17 @@ export enum AfTriggers {
     "Cancel"
 }
 
+export enum AfRange {
+    "Normal" = 0,
+    "Macro",
+    "Full"
+}
+
+export enum AfSpeed {
+    "Normal" = 0,
+    "Fast"
+}
+
 export const cameraSettingsState = $state({
     AwbMode: AwbModes.Auto,
     AfMode: AfModes.Auto,

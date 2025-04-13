@@ -1,7 +1,26 @@
 <script>
-    import WhiteBalanceSelector from "../components/WhiteBalanceSelector.svelte";
+    import EnumSelector from "../components/EnumSelector.svelte";
+    import {AwbModes, AfTriggers, AfModes, AfRange, AfSpeed} from "../state.svelte.js";
 </script>
+<div>
+    Awb Mode
+    <EnumSelector enumToSelect={AwbModes}></EnumSelector>
+</div>
+<div>
+    Af Mode
+    <EnumSelector enumToSelect={AfModes}></EnumSelector>
+</div>
+<div>
+    Af Trigger
+    <EnumSelector enumToSelect={AfTriggers}></EnumSelector>
+</div>
+<div>
+    Af Range
+    <EnumSelector enumToSelect={AfRange}></EnumSelector>
+</div>
+<div>
+    Af Speed
+    <EnumSelector enumToSelect={AfSpeed}></EnumSelector>
+</div>
 
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
-<WhiteBalanceSelector></WhiteBalanceSelector>
+
