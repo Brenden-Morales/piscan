@@ -3,7 +3,7 @@ import json
 from socket_utils import SocketUtils
 import os
 
-ENABLED_CONTROLS = ["AnalogueGain", "ExposureTime", 'AwbMode', 'AeEnable', 'AfMode', 'AfTrigger']
+ENABLED_CONTROLS = ["AnalogueGain", "ExposureTime", 'AwbMode', 'AeEnable', 'AfMode', 'AfTrigger', 'AfRange', 'AfSpeed']
 
 class CameraController:
     def __init__(self, host, port):

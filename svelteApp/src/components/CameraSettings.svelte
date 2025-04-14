@@ -4,6 +4,28 @@
     let onClick = function() {
         console.log('SETTINGS');
         console.log(cameraSettingsState);
+        fetch("http://localhost:8000/api/settings", {
+            method: "PUT", // or "POST"
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                AwbMode: cameraSettingsState.AwbMode,
+                AfMode: cameraSettingsState.AfMode,
+                AfTrigger: cameraSettingsState.AfTrigger,
+                AfRange: cameraSettingsState.AfRange,
+                AfSpeed: cameraSettingsState.AfSpeed,
+                AnalogueGain: cameraSettingsState.AnalogueGain,
+                ExposureTime: cameraSettingsState.ExposureTime
+            })
+        })
+            .then(response => response.json())
+            .then(result => {
+                console.log("Success:", result);
+            })
+            .catch(error => {
+                console.error("Error:", error);
+            });
     }
     let snap = function() {
         console.log('SNAP')

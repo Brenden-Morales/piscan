@@ -5,6 +5,7 @@ import os
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import concurrent.futures
 
@@ -35,6 +36,18 @@ class CameraSettings(BaseModel):
     AfSpeed: int
 
 app = FastAPI()
+origins = [
+    "http://localhost",
+    "http://localhost:5173",
+    "http://localhost:8080",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # Serve static files (like index.html, JS, CSS)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -56,8 +69,6 @@ def update_settings(settings: CameraSettings):
         camera_controller.controls['AfSpeed'][-1] = settings.AfSpeed
         camera_controller.controls['AnalogueGain'][-1] = settings.AnalogueGain
         camera_controller.controls['ExposureTime'][-1] = settings.ExposureTime
-
-        camera_controller.controls['AnalogueGain'][-1] = settings.AnalogueGain
         camera_controller.set_controls(camera_controller.controls)
     return {"message": "Hello from the API!"}
 
