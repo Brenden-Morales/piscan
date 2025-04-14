@@ -30,6 +30,15 @@ export enum AfSpeed {
     "Fast"
 }
 
+export enum PiCams {
+    "picam0" = 0,
+    "picam1",
+    "picam2",
+    "picam3",
+    "picam4",
+    "picam5"
+}
+
 export const cameraSettingsState = $state({
     AwbMode: AwbModes.Auto,
     AfMode: AfModes.Auto,
@@ -38,5 +47,8 @@ export const cameraSettingsState = $state({
     AfSpeed: AfSpeed.Normal,
     AnalogueGain: 1,
     ExposureTime: 20000,
+    SelectedCamera: 0,
+    Timestamp: Date.now(),
+    Loading: false
 });
 

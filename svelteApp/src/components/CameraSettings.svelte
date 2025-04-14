@@ -1,9 +1,10 @@
 <script>
     import EnumSelector from "./EnumSelector.svelte";
     import {AwbModes, AfTriggers, AfModes, AfRange, AfSpeed, cameraSettingsState} from '../state.svelte'
-    let onClick = function() {
+    let onSettings = function() {
         console.log('SETTINGS');
         console.log(cameraSettingsState);
+        cameraSettingsState.Loading = true;
         fetch("http://localhost:8000/api/settings", {
             method: "PUT", // or "POST"
             headers: {
@@ -22,19 +23,42 @@
             .then(response => response.json())
             .then(result => {
                 console.log("Success:", result);
+                cameraSettingsState.Loading = false;
             })
             .catch(error => {
                 console.error("Error:", error);
+                cameraSettingsState.Loading = false;
             });
     }
-    let snap = function() {
-        console.log('SNAP')
+    let snapAllCams = function(url) {
+        cameraSettingsState.Loading = true;
+        fetch(url, {
+            method: "PUT", // or "POST"
+            headers: {
+                "Content-Type": "application/json"
+            }
+        })
+            .then(response => response.json())
+            .then(result => {
+                console.log("Success:", result);
+                for(let i = 0; i < 6; i ++) {
+                    cameraSettingsState.Timestamp = Date.now()
+                    cameraSettingsState.Loading = false;
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                cameraSettingsState.Loading = false;
+            });
+    }
+    let snap = function () {
+        snapAllCams("http://localhost:8000/api/snap")
     }
     let capture = function () {
-        console.log('CAPTURE')
+        snapAllCams("http://localhost:8000/api/capture")
     }
 </script>
-<div style="position:relative;top:0px;left:0px">
+<div style="position:absolute;top:0px;left:0px">
     <div>
         Awb Mode
         <EnumSelector enumToSelect={AwbModes} stateField="AwbMode"></EnumSelector>
@@ -65,7 +89,7 @@
         <input type="number" id="exposure-input" bind:value={cameraSettingsState.ExposureTime} name="number">
     </div>
     <div>
-        <button onclick={onClick}>Apply Settings</button>
+        <button onclick={onSettings}>Apply Settings</button>
     </div>
     <div>
         <button onclick={snap}>Snap</button>
