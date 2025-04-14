@@ -31,6 +31,8 @@ class CameraSettings(BaseModel):
     AnalogueGain: int
     AwbMode: int
     ExposureTime: int
+    AfRange: int
+    AfSpeed: int
 
 app = FastAPI()
 # Serve static files (like index.html, JS, CSS)
@@ -48,9 +50,13 @@ def update_settings(settings: CameraSettings):
     print(settings)
     for camera_controller in camera_controllers:
         camera_controller.controls['AwbMode'][-1] = settings.AwbMode
-        camera_controller.controls['ExposureTime'][-1] = settings.ExposureTime
         camera_controller.controls['AfMode'][-1] = settings.AfMode
         camera_controller.controls['AfTrigger'][-1] = settings.AfTrigger
+        camera_controller.controls['AfRange'][-1] = settings.AfRange
+        camera_controller.controls['AfSpeed'][-1] = settings.AfSpeed
+        camera_controller.controls['AnalogueGain'][-1] = settings.AnalogueGain
+        camera_controller.controls['ExposureTime'][-1] = settings.ExposureTime
+
         camera_controller.controls['AnalogueGain'][-1] = settings.AnalogueGain
         camera_controller.set_controls(camera_controller.controls)
     return {"message": "Hello from the API!"}
