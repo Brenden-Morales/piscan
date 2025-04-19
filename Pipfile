@@ -12,6 +12,7 @@ fastapi = "*"
 uvicorn = "*"
 pydantic = "*"
 piexif = "*"
+pillow = "*"
 
 [dev-packages]
 

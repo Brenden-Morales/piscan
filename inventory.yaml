@@ -12,3 +12,7 @@ cameras:
       ansible_user: picam
     picam5.local:
       ansible_user: picam
+    projectorpi.local:
+      ansible_user: projectorpi
+#    tripodpi.local:
+#      ansible_user: tripodpi

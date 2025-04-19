@@ -5,6 +5,8 @@ ssh-copy-id picam@picam2.local\
 ssh-copy-id picam@picam3.local\
 ssh-copy-id picam@picam4.local\
 ssh-copy-id picam@picam5.local\
+ssh-copy-id tripodpi@tripodpi.local\
+ssh-copy-id projectorpi@projectorpi.local\
 
 ansible-playbook -i inventory.yaml install.yaml\
 ansible-playbook -i inventory.yaml snap_all.yaml\
@@ -21,3 +23,5 @@ ssh projectorpi@projectorpi.local
 ssh tripodpi@tripodpi.local
 
 rpicam-vid -t 0 --inline -o - | cvlc stream:///dev/stdin --sout '#rtp{sdp=rtsp://:8000/}' :demux=h264
+
+https://calib.io/pages/camera-calibration-pattern-generator
