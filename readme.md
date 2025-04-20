@@ -31,3 +31,4 @@ https://calib.io/pages/camera-calibration-pattern-generator
 3. take a bunch of pictures of it using UI
 4. intrinsics_calibration.py
 5. stereo_calibration.py
+6. gray_code_generator.py
