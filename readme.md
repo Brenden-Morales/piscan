@@ -25,3 +25,9 @@ ssh tripodpi@tripodpi.local
 rpicam-vid -t 0 --inline -o - | cvlc stream:///dev/stdin --sout '#rtp{sdp=rtsp://:8000/}' :demux=h264
 
 https://calib.io/pages/camera-calibration-pattern-generator
+
+1. charuco_build.py
+2. print out that image
+3. take a bunch of pictures of it using UI
+4. intrinsics_calibration.py
+5. stereo_calibration.py
