@@ -1,5 +1,11 @@
 from PIL import Image
+import numpy as np
 import os
+import time
+import glob
+
+# === Settings ===
+PATTERN_DIR = "graycode_patterns"
 
 def read_file(path):
     with open(path, 'r') as f:
@@ -13,34 +19,39 @@ def get_framebuffer_info(fbdev='fb0'):
         "bpp": int(read_file(os.path.join(base, "bits_per_pixel")))
     }
 
+def show_image_on_fb(img, fb_path, bpp):
+    if bpp == 32:
+        bgra = Image.new("RGBA", img.size)
+        bgra.paste(img)
+        raw = bgra.tobytes("raw", "BGRA")
+        with open(fb_path, "wb") as f:
+            f.write(raw)
+    elif bpp == 16:
+        arr = np.array(img)
+        r = (arr[:, :, 0] >> 3).astype(np.uint16)
+        g = (arr[:, :, 1] >> 2).astype(np.uint16)
+        b = (arr[:, :, 2] >> 3).astype(np.uint16)
+        rgb565 = (r << 11) | (g << 5) | b
+        with open(fb_path, "wb") as f:
+            f.write(rgb565.astype("<u2").tobytes())
+    else:
+        raise NotImplementedError(f"BPP={bpp} not supported yet")
+
+# === Main ===
 fb_info = get_framebuffer_info()
 WIDTH, HEIGHT = map(int, fb_info["virtual_size"].split(","))
 BPP = fb_info["bpp"]
+FB_PATH = fb_info["fbdev"]
 
-# Create horizontal stripe pattern
-stripe_height = 20
-img = Image.new("RGB", (WIDTH, HEIGHT))
-for y in range(HEIGHT):
-    color = 255 if (y // stripe_height) % 2 == 0 else 0
-    for x in range(WIDTH):
-        img.putpixel((x, y), (color, color, color))
+# Load images from disk
+pattern_paths = sorted(glob.glob(os.path.join(PATTERN_DIR, "*.png")))
+if not pattern_paths:
+    raise FileNotFoundError(f"No .png files found in {PATTERN_DIR}")
 
-# === Fastest Way to Write (for 32bpp) ===
-if BPP == 32:
-    # Add padding for 4-byte alignment
-    bgra_img = Image.new("RGBA", img.size)
-    bgra_img.paste(img)
-    raw = bgra_img.tobytes("raw", "BGRA")  # BGR0
-    with open("/dev/fb0", "wb") as f:
-        f.write(raw)
+print(f"📂 Found {len(pattern_paths)} patterns in {PATTERN_DIR}")
+print(f"📽️ Displaying to {FB_PATH} ({WIDTH}x{HEIGHT}, {BPP} bpp)")
 
-elif BPP == 1
-    # Slightly slower: convert RGB to RGB565
-    import numpy as np
-    arr = np.array(img)
-    r = (arr[:, :, 0] >> 3).astype(np.uint16)
-    g = (arr[:, :, 1] >> 2).astype(np.uint16)
-    b = (arr[:, :, 2] >> 3).astype(np.uint16)
-    rgb565 = (r << 11) | (g << 5) | b
-    with open("/dev/fb0", "wb") as f:
-        f.write(rgb565.astype("<u2").tobytes())  # little-endian uint16
+for i, path in enumerate(pattern_paths):
+    input(f"🔎 Press [Enter] to show pattern {i+1}/{len(pattern_paths)}: {os.path.basename(path)}")
+    img = Image.open(path).convert("RGB").resize((WIDTH, HEIGHT))
+    show_image_on_fb(img, FB_PATH, BPP)

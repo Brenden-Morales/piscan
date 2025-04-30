@@ -13,6 +13,10 @@ uvicorn = "*"
 pydantic = "*"
 piexif = "*"
 pillow = "*"
+tqdm = "*"
+open3d = "*"
+matplotlib = "*"
+fpdf = "*"
 
 [dev-packages]
 
