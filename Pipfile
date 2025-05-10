@@ -17,6 +17,7 @@ tqdm = "*"
 open3d = "*"
 matplotlib = "*"
 fpdf = "*"
+networkx = "*"
 
 [dev-packages]
 
