@@ -64,38 +64,61 @@ for cam in camera_names:
 logger.info("Loaded intrinsics for %d cameras", len(camera_names))
 
 # ----------------------------------------------------------------------------
-# 4) Load initial poses from stereo
+# 4) Load initial poses & precompute cam0 → world
 # ----------------------------------------------------------------------------
 with open(os.path.join(intrinsics_dir, 'multi_camera_global_poses.json')) as f:
     global_RTs = json.load(f)
+
 cam_r0 = []
 cam_t0 = []
 for cam in camera_names:
     R = np.array(global_RTs[cam]['R'], float)
-    T = np.array(global_RTs[cam]['T'], float)
+    T = np.array(global_RTs[cam]['T'], float).reshape(3,1)
     rvec, _ = cv2.Rodrigues(R)
     cam_r0.append(rvec.flatten())
     cam_t0.append(T.flatten())
-logger.info("Loaded initial camera poses")
+
+# invert cam0’s extrinsic: world ↔ cam0
+R0, _  = cv2.Rodrigues(cam_r0[0].reshape(3,1))  # world → cam0
+t0     = cam_t0[0].reshape(3,1)                 # world → cam0
+R0_inv = R0.T                                  # cam0 → world
+t0_inv = -R0_inv @ t0                          # cam0 → world
+
+logger.info("Loaded initial camera poses and precomputed cam0→world")
 
 # ----------------------------------------------------------------------------
-# 5) Detect & cache observations
+# 5) Detect & convert board poses + cache observations
 # ----------------------------------------------------------------------------
-obs = []          # (cam_idx, frame_idx, pid, [u,v])
-board_init = {}   # frame_idx -> (rvec, tvec)
-img_lists = {cam: sorted(glob.glob(os.path.join(captures_dir, cam, '*.jpg'))) for cam in camera_names}
+obs = []                 # (cam_idx, frame_idx, pid, [u,v])
+board_init = {}          # frame_idx → (rvec_world, tvec_world)
+img_lists = {cam: sorted(glob.glob(os.path.join(captures_dir, cam, '*.jpg')))
+             for cam in camera_names}
 num_frames = len(img_lists[camera_names[0]])
+
 for f in range(num_frames):
+    # first detect Corners in cam0
     img0 = cv2.imread(img_lists[camera_names[0]][f])
     gray0 = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
     mc0, ids0, _ = cv2.aruco.detectMarkers(gray0, aruco_dict)
     _, cc0, cids0 = cv2.aruco.interpolateCornersCharuco(mc0, ids0, gray0, board)
     if cids0 is None or len(cids0) < min_corners:
         continue
-    und0 = cv2.undistortPoints(cc0, K[camera_names[0]], dist[camera_names[0]], P=K[camera_names[0]]).reshape(-1,2)
+
+    # undistort & solvePnP (board → cam0)
+    und0 = cv2.undistortPoints(cc0, K[camera_names[0]], dist[camera_names[0]],
+                               P=K[camera_names[0]]).reshape(-1,2)
     obj0 = np.array([chessboard_3D[int(cid)] for cid in cids0.flatten()])
-    _, r0, t0 = cv2.solvePnP(obj0, und0, K[camera_names[0]], None)
-    board_init[f] = (r0.flatten(), t0.flatten())
+    _, r0, t0_cam0 = cv2.solvePnP(obj0, und0, K[camera_names[0]], None)
+    Rb_cam0, _ = cv2.Rodrigues(r0)
+    tb_cam0 = t0_cam0.reshape(3,1)
+
+    # convert to board → world
+    Rb_w = R0_inv @ Rb_cam0
+    tb_w = R0_inv @ (tb_cam0 - t0)
+    board_init[f] = (cv2.Rodrigues(Rb_w)[0].flatten(),
+                     tb_w.flatten())
+
+    # detect in all other cams
     for ci, cam in enumerate(camera_names):
         img = cv2.imread(img_lists[cam][f])
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -106,91 +129,126 @@ for f in range(num_frames):
         und = cv2.undistortPoints(cc, K[cam], dist[cam], P=K[cam]).reshape(-1,2)
         for i, pid in enumerate(cids.flatten()):
             obs.append((ci, f, int(pid), und[i]))
-logger.info("Collected %d observations over %d frames", len(obs), len(board_init))
+
+logger.info("Collected %d observations over %d valid frames",
+            len(obs), len(board_init))
 
 # ----------------------------------------------------------------------------
-# 6) Build parameter vector & sparsity
+# 6) Filter any obviously bad obs (negative depth in cam_i)
 # ----------------------------------------------------------------------------
-ncams = len(camera_names)
+filtered = []
+for ci, f, pid, uv in obs:
+    rvec_w, tvec_w = board_init[f]
+    Rw, _ = cv2.Rodrigues(rvec_w)
+    tw = tvec_w.reshape(3,1)
+    Xw = Rw.dot(chessboard_3D[pid].reshape(3,1)) + tw
+
+    Rci, _  = cv2.Rodrigues(cam_r0[ci].reshape(3,1))
+    tci     = cam_t0[ci].reshape(3,1)
+    Xci     = Rci.dot(Xw) + tci
+    if Xci[2,0] > 1e-6:
+        filtered.append((ci, f, pid, uv))
+obs = filtered
+m = len(obs)*2
+logger.info("After depth filtering: %d observations", len(obs))
+
+# ----------------------------------------------------------------------------
+# 7) Build x0 & sparsity pattern
+# ----------------------------------------------------------------------------
+ncams  = len(camera_names)
 frames = sorted([f for f in board_init if f != sync_frame])
-x0 = np.zeros(ncams*6 + len(frames)*6)
+x0     = np.zeros(ncams*6 + len(frames)*6)
+
 for i in range(ncams):
-    x0[6*i:6*i+3] = cam_r0[i]
+    x0[6*i:6*i+3]   = cam_r0[i]
     x0[6*i+3:6*i+6] = cam_t0[i]
 for j, f in enumerate(frames):
     rj, tj = board_init[f]
-    x0[ncams*6+6*j:ncams*6+6*j+3] = rj
-    x0[ncams*6+6*j+3:ncams*6+6*j+6] = tj
-m = len(obs)*2
-n = x0.size
+    base = ncams*6 + 6*j
+    x0[base:base+3]   = rj
+    x0[base+3:base+6] = tj
+
 rows, cols = [], []
 for i, (ci, f, pid, uv) in enumerate(obs):
     row_inds = [2*i, 2*i+1]
+    # camera jacobians
     for k in range(6):
-        rows.extend(row_inds)
-        cols.extend([ci*6+k, ci*6+k])
+        rows += row_inds
+        cols += [ci*6+k]*2
+    # board jacobians
     if f != sync_frame:
-        j = frames.index(f)
+        j    = frames.index(f)
         base = ncams*6 + 6*j
         for k in range(6):
-            rows.extend(row_inds)
-            cols.extend([base+k, base+k])
+            rows += row_inds
+            cols += [base+k]*2
+
 data = np.ones(len(rows))
-jac_sparsity = coo_matrix((data, (rows, cols)), shape=(m, n))
+jac_sparsity = coo_matrix((data, (rows, cols)), shape=(m, x0.size))
 logger.info("Jacobian sparsity: %d entries", len(rows))
 
 # ----------------------------------------------------------------------------
-# 7) Residual function with robust handling for z<=0
+# 8) residuals
 # ----------------------------------------------------------------------------
 def residuals(x):
     cam_params = x[:ncams*6].reshape(ncams,6)
     res = np.zeros(m)
     for i, (ci, f, pid, uv) in enumerate(obs):
-        rvec, tvec = cam_params[ci,:3], cam_params[ci,3:6]
-        Rcam, _ = cv2.Rodrigues(rvec)
-        tc = tvec.reshape(3,1)
+        rci = cam_params[ci,:3]
+        tci = cam_params[ci,3:6].reshape(3,1)
+        Rci, _ = cv2.Rodrigues(rci)
         if f == sync_frame:
-            Rb, tb = np.eye(3), np.zeros((3,1))
+            Rbw, tbw = np.eye(3), np.zeros((3,1))
         else:
             idx = frames.index(f)
-            b = x[ncams*6+6*idx:ncams*6+6*idx+6]
-            Rb, _ = cv2.Rodrigues(b[:3])
-            tb = b[3:6].reshape(3,1)
-        Xw = chessboard_3D[pid].reshape(3,1)
-        Xc = Rcam.dot(Rb.dot(Xw)+tb) + tc
-        z = Xc[2,0]
+            bj  = x[ncams*6+6*idx : ncams*6+6*idx+6]
+            Rbw, _ = cv2.Rodrigues(bj[:3])
+            tbw    = bj[3:6].reshape(3,1)
+        Xw  = Rbw.dot(chessboard_3D[pid].reshape(3,1)) + tbw
+        Xci = Rci.dot(Xw) + tci
+        z = Xci[2,0]
         if z <= 1e-6:
-            # assign large residuals to keep array shape
-            res[2*i] = 1e3
-            res[2*i+1] = 1e3
+            res[2*i:2*i+2] = 1e3
         else:
-            u = (Xc[0,0]/z)*K[camera_names[ci]][0,0] + K[camera_names[ci]][0,2]
-            v = (Xc[1,0]/z)*K[camera_names[ci]][1,1] + K[camera_names[ci]][1,2]
-            res[2*i] = u - uv[0]
+            u = (Xci[0,0]/z)*K[camera_names[ci]][0,0] + K[camera_names[ci]][0,2]
+            v = (Xci[1,0]/z)*K[camera_names[ci]][1,1] + K[camera_names[ci]][1,2]
+            res[2*i]   = u - uv[0]
             res[2*i+1] = v - uv[1]
     return res
 
 # ----------------------------------------------------------------------------
-# 8) Solve BA
+# 9) Two-stage solve
 # ----------------------------------------------------------------------------
-logger.info("Running bundle adjustment...")
-sol = least_squares(
+logger.info("Stage 1: pure LM")
+sol0 = least_squares(
     residuals, x0,
-    jac_sparsity=jac_sparsity,
-    method='trf', loss='soft_l1', f_scale=1.0,
+    method='lm',                   # ← no jac_sparsity here
+    xtol=1e-12, ftol=1e-12, gtol=1e-12,
     verbose=2
 )
-logger.info("BA done: cost=%.6f", sol.cost)
+
+logger.info("Stage 2: robust TRF")
+sol1 = least_squares(
+    residuals, sol0.x,
+    jac_sparsity=jac_sparsity,
+    method='trf', loss='soft_l1', f_scale=5.0,
+    xtol=1e-12, ftol=1e-12, gtol=1e-12,
+    max_nfev=2000,
+    verbose=2
+)
+
+logger.info("BA done: final cost=%.6f", sol1.cost)
 
 # ----------------------------------------------------------------------------
-# 9) Save optimized poses
+# 10) Save optimized poses
 # ----------------------------------------------------------------------------
 camera_poses = {}
 for i, cam in enumerate(camera_names):
-    rvec = sol.x[6*i:6*i+3]
-    tvec = sol.x[6*i+3:6*i+6]
+    rvec = sol1.x[6*i:6*i+3]
+    tvec = sol1.x[6*i+3:6*i+6]
     Ropt, _ = cv2.Rodrigues(rvec)
     camera_poses[cam] = {'R': Ropt.tolist(), 'T': tvec.tolist()}
+
 os.makedirs('results', exist_ok=True)
 with open('results/camera_poses_ba.json', 'w') as f:
     json.dump(camera_poses, f, indent=2)
