@@ -18,6 +18,7 @@ open3d = "*"
 matplotlib = "*"
 fpdf = "*"
 networkx = "*"
+pyceres = "*"
 
 [dev-packages]
 

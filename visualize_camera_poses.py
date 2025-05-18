@@ -1,41 +1,70 @@
 import json
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D  # this registers the 3D projection
+from mpl_toolkits.mplot3d import Axes3D
 
-# Load the BA-refined camera poses
-with open('results/camera_poses_ba.json', 'r') as f:
-    poses = json.load(f)
+def visualize_camera_poses_simple(json_path, arrow_fraction=0.02, view_elev=30, view_azim=45):
+    """
+    Simplified 3D visualization of camera poses.
 
-camera_names = list(poses.keys())
+    - Plots camera centers as black dots with labels.
+    - Draws orientation axes using red (X), green (Y), blue (Z) arrows.
+    - Centers and scales the view for clarity.
 
-# Extract positions
-positions = np.array([poses[c]['T'] for c in camera_names])  # shape (N,3)
+    Args:
+        json_path (str): Path to the camera_poses JSON file.
+        arrow_fraction (float): Fraction of scene diagonal for arrow length.
+        view_elev (float): Elevation angle for 3D view.
+        view_azim (float): Azimuth angle for 3D view.
+    """
+    # Load data
+    with open(json_path, 'r') as f:
+        cam_data = json.load(f)
+    names = list(cam_data.keys())
+    positions = np.array([cam_data[n]['T'] for n in names])
+    rotations = {n: np.array(cam_data[n]['R']) for n in names}
 
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
+    # Compute scene size
+    mins = positions.min(axis=0)
+    maxs = positions.max(axis=0)
+    diag = np.linalg.norm(maxs - mins)
+    arrow_len = diag * arrow_fraction
 
-# Scatter the camera centers
-ax.scatter(positions[:,0], positions[:,1], positions[:,2])
+    # Create plot
+    fig = plt.figure(figsize=(7,7))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.view_init(elev=view_elev, azim=view_azim)
+    ax.set_title('Camera Poses')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
 
-# Compute axis length (10% of the bounding box diagonal)
-diag = np.linalg.norm(positions.max(axis=0) - positions.min(axis=0))
-axis_len = 0.1 * diag
+    # Equal aspect
+    ranges = maxs - mins
+    max_range = ranges.max()
+    mid = (maxs + mins) / 2
+    ax.set_xlim(mid[0] - max_range/2, mid[0] + max_range/2)
+    ax.set_ylim(mid[1] - max_range/2, mid[1] + max_range/2)
+    ax.set_zlim(mid[2] - max_range/2, mid[2] + max_range/2)
 
-# Draw each camera’s orientation axes
-for cam in camera_names:
-    R = np.array(poses[cam]['R'])      # 3×3 rotation matrix
-    T = np.array(poses[cam]['T']).ravel()
-    ax.text(*T, cam)                   # label
-    # for each local axis (columns of R)
-    for i in range(3):
-        axis_vec = R[:,i] * axis_len
-        ax.quiver(T[0], T[1], T[2],
-                  axis_vec[0], axis_vec[1], axis_vec[2],
-                  length=1, normalize=False)
+    # Plot centers
+    ax.scatter(positions[:,0], positions[:,1], positions[:,2], c='k', s=50)
+    for i, n in enumerate(names):
+        ax.text(*positions[i], n, color='k')
 
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-plt.title('Bundle-Adjusted Camera Poses')
-plt.show()
+    # Draw axes
+    for i, n in enumerate(names):
+        p = positions[i]
+        R = rotations[n]
+        # X axis in red
+        ax.quiver(*p, *(R[:,0]), length=arrow_len, color='r', normalize=True)
+        # Y axis in green
+        ax.quiver(*p, *(R[:,1]), length=arrow_len, color='g', normalize=True)
+        # Z axis in blue
+        ax.quiver(*p, *(R[:,2]), length=arrow_len, color='b', normalize=True)
+
+    plt.tight_layout()
+    plt.show()
+
+# Example usage:
+visualize_camera_poses_simple('calibration_results/camera_poses_ceres.json', arrow_fraction=0.02)
