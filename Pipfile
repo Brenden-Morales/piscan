@@ -19,6 +19,8 @@ matplotlib = "*"
 fpdf = "*"
 networkx = "*"
 pyceres = "*"
+opencv-python = "*"
+opencv-contrib-python = "==4.11.0.86"
 
 [dev-packages]
 
