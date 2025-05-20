@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Multi-view Camera-only Bundle Adjustment
-Using SciPy least_squares with Jacobian sparsity and Soft-L1 robust loss.
+Using pyceres manual CostFunction subclass and Soft-L1 robust loss.
 """
 import os
 import glob
@@ -10,8 +10,7 @@ import logging
 
 import numpy as np
 import cv2
-from scipy.optimize import least_squares
-from scipy.sparse import coo_matrix
+import pyceres
 
 # ----------------------------------------------------------------------------
 # Setup logging
@@ -21,7 +20,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%H:%M:%S"
 )
-logger = logging.getLogger("BA-SciPy")
+logger = logging.getLogger("BA-Ceres")
 
 # ----------------------------------------------------------------------------
 # 1) Charuco board setup
@@ -57,7 +56,7 @@ os.makedirs(intrinsics_dir, exist_ok=True)
 K = {}
 dist = {}
 for cam in camera_names:
-    fn = os.path.join(intrinsics_dir, f"{cam}_intrinsics_refined_enhanced.npz")
+    fn = os.path.join(intrinsics_dir, f"{cam}_intrinsics_refined.npz")
     d = np.load(fn)
     K[cam] = d['K'].astype(np.float64)
     dist[cam] = d['dist'].astype(np.float64)
@@ -78,25 +77,22 @@ for cam in camera_names:
     cam_r0.append(rvec.flatten())
     cam_t0.append(T.flatten())
 
-# invert cam0’s extrinsic: world ↔ cam0
-R0, _  = cv2.Rodrigues(cam_r0[0].reshape(3,1))  # world → cam0
-t0     = cam_t0[0].reshape(3,1)                 # world → cam0
-R0_inv = R0.T                                  # cam0 → world
-t0_inv = -R0_inv @ t0                          # cam0 → world
-
+R0, _  = cv2.Rodrigues(cam_r0[0].reshape(3,1))
+t0     = cam_t0[0].reshape(3,1)
+R0_inv = R0.T
+t0_inv = -R0_inv @ t0
 logger.info("Loaded initial camera poses and precomputed cam0→world")
 
 # ----------------------------------------------------------------------------
 # 5) Detect & convert board poses + cache observations
 # ----------------------------------------------------------------------------
-obs = []                 # (cam_idx, frame_idx, pid, [u,v])
-board_init = {}          # frame_idx → (rvec_world, tvec_world)
+obs = []
+board_init = {}
 img_lists = {cam: sorted(glob.glob(os.path.join(captures_dir, cam, '*.jpg')))
              for cam in camera_names}
 num_frames = len(img_lists[camera_names[0]])
 
 for f in range(num_frames):
-    # first detect Corners in cam0
     img0 = cv2.imread(img_lists[camera_names[0]][f])
     gray0 = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
     mc0, ids0, _ = cv2.aruco.detectMarkers(gray0, aruco_dict)
@@ -104,7 +100,6 @@ for f in range(num_frames):
     if cids0 is None or len(cids0) < min_corners:
         continue
 
-    # undistort & solvePnP (board → cam0)
     und0 = cv2.undistortPoints(cc0, K[camera_names[0]], dist[camera_names[0]],
                                P=K[camera_names[0]]).reshape(-1,2)
     obj0 = np.array([chessboard_3D[int(cid)] for cid in cids0.flatten()])
@@ -112,13 +107,10 @@ for f in range(num_frames):
     Rb_cam0, _ = cv2.Rodrigues(r0)
     tb_cam0 = t0_cam0.reshape(3,1)
 
-    # convert to board → world
     Rb_w = R0_inv @ Rb_cam0
     tb_w = R0_inv @ (tb_cam0 - t0)
-    board_init[f] = (cv2.Rodrigues(Rb_w)[0].flatten(),
-                     tb_w.flatten())
+    board_init[f] = (cv2.Rodrigues(Rb_w)[0].flatten(), tb_w.flatten())
 
-    # detect in all other cams
     for ci, cam in enumerate(camera_names):
         img = cv2.imread(img_lists[cam][f])
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -129,12 +121,10 @@ for f in range(num_frames):
         und = cv2.undistortPoints(cc, K[cam], dist[cam], P=K[cam]).reshape(-1,2)
         for i, pid in enumerate(cids.flatten()):
             obs.append((ci, f, int(pid), und[i]))
-
-logger.info("Collected %d observations over %d valid frames",
-            len(obs), len(board_init))
+logger.info("Collected %d observations over %d valid frames", len(obs), len(board_init))
 
 # ----------------------------------------------------------------------------
-# 6) Filter any obviously bad obs (negative depth in cam_i)
+# 6) Filter by depth
 # ----------------------------------------------------------------------------
 filtered = []
 for ci, f, pid, uv in obs:
@@ -143,109 +133,143 @@ for ci, f, pid, uv in obs:
     tw = tvec_w.reshape(3,1)
     Xw = Rw.dot(chessboard_3D[pid].reshape(3,1)) + tw
 
-    Rci, _  = cv2.Rodrigues(cam_r0[ci].reshape(3,1))
-    tci     = cam_t0[ci].reshape(3,1)
-    Xci     = Rci.dot(Xw) + tci
+    Rci, _ = cv2.Rodrigues(cam_r0[ci].reshape(3,1))
+    tci = cam_t0[ci].reshape(3,1)
+    Xci = Rci.dot(Xw) + tci
     if Xci[2,0] > 1e-6:
         filtered.append((ci, f, pid, uv))
 obs = filtered
-m = len(obs)*2
 logger.info("After depth filtering: %d observations", len(obs))
 
 # ----------------------------------------------------------------------------
-# 7) Build x0 & sparsity pattern
+# 7) Param initialization
 # ----------------------------------------------------------------------------
-ncams  = len(camera_names)
+ncams = len(camera_names)
 frames = sorted([f for f in board_init if f != sync_frame])
-x0     = np.zeros(ncams*6 + len(frames)*6)
+x0 = np.zeros(ncams*6 + len(frames)*6)
 
 for i in range(ncams):
-    x0[6*i:6*i+3]   = cam_r0[i]
+    x0[6*i:6*i+3] = cam_r0[i]
     x0[6*i+3:6*i+6] = cam_t0[i]
 for j, f in enumerate(frames):
     rj, tj = board_init[f]
     base = ncams*6 + 6*j
-    x0[base:base+3]   = rj
+    x0[base:base+3] = rj
     x0[base+3:base+6] = tj
 
-rows, cols = [], []
-for i, (ci, f, pid, uv) in enumerate(obs):
-    row_inds = [2*i, 2*i+1]
-    # camera jacobians
-    for k in range(6):
-        rows += row_inds
-        cols += [ci*6+k]*2
-    # board jacobians
-    if f != sync_frame:
-        j    = frames.index(f)
-        base = ncams*6 + 6*j
-        for k in range(6):
-            rows += row_inds
-            cols += [base+k]*2
-
-data = np.ones(len(rows))
-jac_sparsity = coo_matrix((data, (rows, cols)), shape=(m, x0.size))
-logger.info("Jacobian sparsity: %d entries", len(rows))
+cam_params = [np.concatenate([cam_r0[i], cam_t0[i]]).astype(np.float64) for i in range(ncams)]
+board_params = {f: np.concatenate(board_init[f]).astype(np.float64) for f in frames}
 
 # ----------------------------------------------------------------------------
-# 8) residuals
+# 8) Define residual classes manually
 # ----------------------------------------------------------------------------
-def residuals(x):
-    cam_params = x[:ncams*6].reshape(ncams,6)
-    res = np.zeros(m)
-    for i, (ci, f, pid, uv) in enumerate(obs):
-        rci = cam_params[ci,:3]
-        tci = cam_params[ci,3:6].reshape(3,1)
+class ReprojectionResidualSync(pyceres.CostFunction):
+    def __init__(self, ci, pid, uv):
+        super().__init__()
+        self.set_num_residuals(2)
+        self.set_parameter_block_sizes([6])
+        self.ci = ci
+        self.pid = pid
+        self.uv = uv
+
+    def Evaluate(self, parameters, residuals, jacobians):
+        cam = parameters[0]
+        rci = cam[:3]
+        tci = cam[3:6].reshape(3,1)
         Rci, _ = cv2.Rodrigues(rci)
-        if f == sync_frame:
-            Rbw, tbw = np.eye(3), np.zeros((3,1))
-        else:
-            idx = frames.index(f)
-            bj  = x[ncams*6+6*idx : ncams*6+6*idx+6]
-            Rbw, _ = cv2.Rodrigues(bj[:3])
-            tbw    = bj[3:6].reshape(3,1)
-        Xw  = Rbw.dot(chessboard_3D[pid].reshape(3,1)) + tbw
-        Xci = Rci.dot(Xw) + tci
+
+        Xw = chessboard_3D[self.pid].reshape(3,1)
+        Xci = Rci @ Xw + tci
         z = Xci[2,0]
-        if z <= 1e-6:
-            res[2*i:2*i+2] = 1e3
+
+        if not np.isfinite(z) or z <= 1e-6:
+            print(f"[Sync] Skipping residual for ci={self.ci}, pid={self.pid}, z={z}")
+            return False  # Signal failure, Ceres will skip this residual
+
+        fx, fy = K[camera_names[self.ci]][0,0], K[camera_names[self.ci]][1,1]
+        cx, cy = K[camera_names[self.ci]][0,2], K[camera_names[self.ci]][1,2]
+        u = (Xci[0,0]/z)*fx + cx
+        v = (Xci[1,0]/z)*fy + cy
+        residuals[0] = float(u - self.uv[0])
+        residuals[1] = float(v - self.uv[1])
+        return True
+
+class ReprojectionResidual(pyceres.CostFunction):
+    def __init__(self, ci, pid, uv):
+        super().__init__()
+        self.set_num_residuals(2)
+        self.set_parameter_block_sizes([6, 6])
+        self.ci = ci
+        self.pid = pid
+        self.uv = uv
+
+    def Evaluate(self, parameters, residuals, jacobians):
+        cam = parameters[0]
+        board = parameters[1]
+        rci = cam[:3]
+        tci = cam[3:6].reshape(3,1)
+        Rci, _ = cv2.Rodrigues(rci)
+
+        rbw = board[:3]
+        tbw = board[3:6].reshape(3,1)
+        Rbw, _ = cv2.Rodrigues(rbw)
+        Xw = Rbw @ chessboard_3D[self.pid].reshape(3,1) + tbw
+        Xci = Rci @ Xw + tci
+        z = Xci[2,0]
+
+        if not np.isfinite(z) or z <= 1e-6:
+            print(f"[Board] Skipping residual for ci={self.ci}, pid={self.pid}, z={z}")
+            return False
+
+        fx, fy = K[camera_names[self.ci]][0,0], K[camera_names[self.ci]][1,1]
+        cx, cy = K[camera_names[self.ci]][0,2], K[camera_names[self.ci]][1,2]
+        u = (Xci[0,0]/z)*fx + cx
+        v = (Xci[1,0]/z)*fy + cy
+        residuals[0] = float(u - self.uv[0])
+        residuals[1] = float(v - self.uv[1])
+        return True
+
+# ----------------------------------------------------------------------------
+# 9) Setup and solve problem
+# ----------------------------------------------------------------------------
+logger.info("Solving with Ceres")
+problem = pyceres.Problem()
+loss = pyceres.SoftLOneLoss(5.0)
+
+for ci in range(ncams):
+    problem.add_parameter_block(cam_params[ci], 6)
+for f in frames:
+    problem.add_parameter_block(board_params[f], 6)
+
+for ci, f, pid, uv in obs:
+    if f == sync_frame:
+        test_cost = ReprojectionResidualSync(ci, pid, uv)
+        if test_cost.Evaluate([cam_params[ci]], [0.0, 0.0], None):
+            problem.add_residual_block(test_cost, loss, [cam_params[ci]])
         else:
-            u = (Xci[0,0]/z)*K[camera_names[ci]][0,0] + K[camera_names[ci]][0,2]
-            v = (Xci[1,0]/z)*K[camera_names[ci]][1,1] + K[camera_names[ci]][1,2]
-            res[2*i]   = u - uv[0]
-            res[2*i+1] = v - uv[1]
-    return res
+            print(f"⚠️ Skipped invalid sync residual for ci={ci}, pid={pid}")
+    else:
+        test_cost = ReprojectionResidual(ci, pid, uv)
+        if test_cost.Evaluate([cam_params[ci], board_params[f]], [0.0, 0.0], None):
+            problem.add_residual_block(test_cost, loss, [cam_params[ci], board_params[f]])
+        else:
+            print(f"⚠️ Skipped invalid board residual for ci={ci}, pid={pid}, f={f}")
 
-# ----------------------------------------------------------------------------
-# 9) Two-stage solve
-# ----------------------------------------------------------------------------
-logger.info("Stage 1: pure LM")
-sol0 = least_squares(
-    residuals, x0,
-    method='lm',                   # ← no jac_sparsity here
-    xtol=1e-12, ftol=1e-12, gtol=1e-12,
-    verbose=2
-)
 
-logger.info("Stage 2: robust TRF")
-sol1 = least_squares(
-    residuals, sol0.x,
-    jac_sparsity=jac_sparsity,
-    method='trf', loss='soft_l1', f_scale=5.0,
-    xtol=1e-12, ftol=1e-12, gtol=1e-12,
-    max_nfev=2000,
-    verbose=2
-)
-
-logger.info("BA done: final cost=%.6f", sol1.cost)
+options = pyceres.SolverOptions()
+options.max_num_iterations = 2000
+options.minimizer_progress_to_stdout = True
+summary = pyceres.SolverSummary()
+pyceres.solve(options, problem, summary)
+logger.info("BA done: final cost=%.6f", summary.final_cost)
 
 # ----------------------------------------------------------------------------
 # 10) Save optimized poses
 # ----------------------------------------------------------------------------
 camera_poses = {}
 for i, cam in enumerate(camera_names):
-    rvec = sol1.x[6*i:6*i+3]
-    tvec = sol1.x[6*i+3:6*i+6]
+    rvec = cam_params[i][:3]
+    tvec = cam_params[i][3:6]
     Ropt, _ = cv2.Rodrigues(rvec)
     camera_poses[cam] = {'R': Ropt.tolist(), 'T': tvec.tolist()}
 

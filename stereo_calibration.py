@@ -64,7 +64,7 @@ subpix_criteria = (
 print("\n📅 Loading camera intrinsics…")
 intrinsics = {}
 for cam in camera_names:
-    fn = os.path.join(calib_dir, f"{cam}_intrinsics_refined_enhanced.npz")
+    fn = os.path.join(calib_dir, f"{cam}_intrinsics_refined.npz")
     data = np.load(fn)
     intrinsics[cam] = {
         "K": data["K"].astype(np.float64),

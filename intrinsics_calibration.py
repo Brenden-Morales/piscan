@@ -30,29 +30,17 @@ root_dir    = "captures"
 output_dir  = "calibration_results"
 os.makedirs(output_dir, exist_ok=True)
 
-# sub-pixel refinement (tighter)
 subpix_win      = (7, 7)
 subpix_zero     = (-1, -1)
 subpix_criteria = (
     cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_MAX_ITER,
-    400,     # more iterations
-    1e-7    # finer epsilon
-)
-
-# calibration flags & criteria
-ext_flags = (
-        cv2.CALIB_RATIONAL_MODEL     # k4,k5,k6
-        | cv2.CALIB_THIN_PRISM_MODEL   # thin-prism parameters
-)
-ext_criteria = (
-    cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_MAX_ITER,
     400,
-    1e-8
+    1e-7
 )
 
 final_flags = (
-        ext_flags
-        | cv2.CALIB_USE_INTRINSIC_GUESS
+        cv2.CALIB_RATIONAL_MODEL |
+        cv2.CALIB_THIN_PRISM_MODEL
 )
 final_criteria = (
     cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_MAX_ITER,
@@ -60,8 +48,7 @@ final_criteria = (
     1e-7
 )
 
-# pruning fractions
-prune_fraction = 0.1  # drop worst 20% views
+prune_fraction = 0.1
 
 # -----------------------------------------------------------------------------
 # 2) Loop over each camera
@@ -76,13 +63,11 @@ for cam in sorted(os.listdir(root_dir)):
     charuco_ids     = []
     image_size      = None
 
-    # 2.1) detect & subpixel refine
     for fn in sorted(glob.glob(os.path.join(cam_path, "*.jpg"))):
         img = cv2.imread(fn)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         image_size = gray.shape[::-1]
 
-        # detect markers & Charuco
         m_corners, m_ids, _ = aruco.detectMarkers(gray, aruco_dict)
         if m_ids is None or len(m_ids) < 4:
             continue
@@ -92,7 +77,6 @@ for cam in sorted(os.listdir(root_dir)):
         if cids is None or len(cids) < 4:
             continue
 
-        # subpixel refine
         pts = cc.reshape(-1,1,2)
         cv2.cornerSubPix(gray, pts, subpix_win, subpix_zero, subpix_criteria)
         charuco_corners.append(pts)
@@ -105,32 +89,40 @@ for cam in sorted(os.listdir(root_dir)):
         continue
 
     # -----------------------------------------------------------------------------
-    # 3) Extended calibration → per-view errors
+    # 3) Initial calibration (for reprojection errors)
     # -----------------------------------------------------------------------------
-    print("  ▶ Running calibrateCameraCharucoExtended…")
-    ret_ext, K_ext, dist_ext, rvecs_ext, tvecs_ext, std_int, std_ext, per_view_err = (
-        aruco.calibrateCameraCharucoExtended(
-            charucoCorners=charuco_corners,
-            charucoIds=charuco_ids,
-            board=board,
-            imageSize=image_size,
-            cameraMatrix=None,
-            distCoeffs=None,
-            flags=ext_flags,
-            criteria=ext_criteria
-        )
+    print("  ▶ Running initial calibrateCameraCharuco…")
+    rms, K, dist, rvecs, tvecs = aruco.calibrateCameraCharuco(
+        charucoCorners=charuco_corners,
+        charucoIds=charuco_ids,
+        board=board,
+        imageSize=image_size,
+        cameraMatrix=None,
+        distCoeffs=None,
+        flags=final_flags,
+        criteria=final_criteria
     )
-    print(f"  Extended RMS: {ret_ext:.4f} px")
+    print(f"  Initial RMS: {rms:.4f} px")
 
     # -----------------------------------------------------------------------------
-    # 4) Prune worst views by per-view reprojection error
+    # 4) Compute per-view reprojection errors
     # -----------------------------------------------------------------------------
-    # pair up each view’s error with its index
+    per_view_err = []
+    for i in range(len(charuco_corners)):
+        img_points_proj, _ = cv2.projectPoints(
+            board.getChessboardCorners()[charuco_ids[i].flatten()],
+            rvecs[i], tvecs[i], K, dist
+        )
+        err = cv2.norm(charuco_corners[i], img_points_proj, cv2.NORM_L2) / len(img_points_proj)
+        per_view_err.append(err)
+
+    # -----------------------------------------------------------------------------
+    # 5) Prune worst views
+    # -----------------------------------------------------------------------------
     idx_err = list(enumerate(per_view_err))
-    # sort descending by error
     idx_err.sort(key=lambda x: x[1], reverse=True)
     n_prune = int(len(idx_err) * prune_fraction)
-    prune_idx = set([i for i,_ in idx_err[:n_prune]])
+    prune_idx = set([i for i, _ in idx_err[:n_prune]])
 
     keep_corners = []
     keep_ids     = []
@@ -146,29 +138,29 @@ for cam in sorted(os.listdir(root_dir)):
         continue
 
     # -----------------------------------------------------------------------------
-    # 5) Final calibration with full distortion model + intrinsic guess
+    # 6) Final calibration
     # -----------------------------------------------------------------------------
     print("  ▶ Running final calibrateCameraCharuco…")
-    ret_final, K_final, dist_final, rvecs_f, tvecs_f = aruco.calibrateCameraCharuco(
+    final_rms, K_final, dist_final, _, _ = aruco.calibrateCameraCharuco(
         charucoCorners=keep_corners,
         charucoIds=keep_ids,
         board=board,
         imageSize=image_size,
-        cameraMatrix=K_ext,
-        distCoeffs=dist_ext,
-        flags=final_flags,
+        cameraMatrix=K,
+        distCoeffs=dist,
+        flags=(final_flags | cv2.CALIB_USE_INTRINSIC_GUESS),
         criteria=final_criteria
     )
-    print(f"  ✅ Final RMS: {ret_final:.4f} px")
+    print(f"  ✅ Final RMS: {final_rms:.4f} px")
 
     # -----------------------------------------------------------------------------
-    # 6) Save results
+    # 7) Save results
     # -----------------------------------------------------------------------------
-    out_path = os.path.join(output_dir, f"{cam}_intrinsics_refined_enhanced.npz")
+    out_path = os.path.join(output_dir, f"{cam}_intrinsics_refined.npz")
     np.savez(out_path,
              K=K_final,
              dist=dist_final,
              image_size=image_size,
-             rms_ext=ret_ext,
-             rms_final=ret_final)
+             rms_initial=rms,
+             rms_final=final_rms)
     print(f"  Saved enhanced intrinsics → {out_path}")
