@@ -1,7 +1,7 @@
 import cv2
 import cv2.aruco as aruco
 import numpy as np
-import glob, os
+import glob, os, shutil
 
 # -----------------------------------------------------------------------------
 # 0) Charuco board setup (16×16, DICT_4X4_1000)
@@ -45,7 +45,7 @@ final_criteria = (
     1e-7
 )
 
-prune_fraction = 0.5
+max_views_kept = 25
 
 # -----------------------------------------------------------------------------
 # 2) Loop over each camera
@@ -58,6 +58,7 @@ for cam in sorted(os.listdir(root_dir)):
     print(f"\n🔍 Calibrating intrinsics for {cam}")
     charuco_corners = []
     charuco_ids     = []
+    file_paths      = []
     image_size      = None
 
     for fn in sorted(glob.glob(os.path.join(cam_path, "*.jpg"))):
@@ -78,11 +79,12 @@ for cam in sorted(os.listdir(root_dir)):
         cv2.cornerSubPix(gray, pts, subpix_win, subpix_zero, subpix_criteria)
         charuco_corners.append(pts)
         charuco_ids.append(cids)
+        file_paths.append(fn)
 
     n_views = len(charuco_corners)
     print(f"  Collected {n_views} Charuco views")
-    if n_views < 15:
-        print("  ❌ Too few frames (need ≥15), skipping")
+    if n_views < max_views_kept:
+        print(f"  ❌ Too few frames (need ≥{max_views_kept}), skipping")
         continue
 
     # -----------------------------------------------------------------------------
@@ -111,29 +113,24 @@ for cam in sorted(os.listdir(root_dir)):
             rvecs[i], tvecs[i], K, dist
         )
         err = cv2.norm(charuco_corners[i], img_points_proj, cv2.NORM_L2) / len(img_points_proj)
-        per_view_err.append(err)
-
+        per_view_err.append((i, err))
 
     # -----------------------------------------------------------------------------
-    # 5) Prune worst views
+    # 5) Keep only the best N views
     # -----------------------------------------------------------------------------
-    idx_err = list(enumerate(per_view_err))
-    idx_err.sort(key=lambda x: x[1], reverse=True)
-    n_prune = int(len(idx_err) * prune_fraction)
-    prune_idx = set([i for i, _ in idx_err[:n_prune]])
+    per_view_err.sort(key=lambda x: x[1])
+    keep_idxs = [i for i, _ in per_view_err[:max_views_kept]]
 
-    keep_corners = []
-    keep_ids     = []
-    for i, (cc, cids) in enumerate(zip(charuco_corners, charuco_ids)):
-        if i in prune_idx:
-            continue
-        keep_corners.append(cc)
-        keep_ids.append(cids)
-    print(f"  Pruned {n_prune} worst views → {len(keep_corners)} remain")
+    keep_corners = [charuco_corners[i] for i in keep_idxs]
+    keep_ids     = [charuco_ids[i] for i in keep_idxs]
 
-    if len(keep_corners) < 10:
-        print("  ❌ Too few after prune, skipping final calibration")
-        continue
+    print(f"  Keeping {len(keep_corners)} best views based on reprojection error")
+
+    # Optional: Save kept images
+    keep_dir = os.path.join(output_dir, f"{cam}_kept")
+    os.makedirs(keep_dir, exist_ok=True)
+    for i in keep_idxs:
+        shutil.copy(file_paths[i], os.path.join(keep_dir, os.path.basename(file_paths[i])))
 
     # -----------------------------------------------------------------------------
     # 6) Final calibration
