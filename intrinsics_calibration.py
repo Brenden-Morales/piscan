@@ -30,7 +30,7 @@ root_dir    = "captures"
 output_dir  = "calibration_results"
 os.makedirs(output_dir, exist_ok=True)
 
-subpix_win      = (7, 7)
+subpix_win      = (11, 11)
 subpix_zero     = (-1, -1)
 subpix_criteria = (
     cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_MAX_ITER,
@@ -38,17 +38,14 @@ subpix_criteria = (
     1e-7
 )
 
-final_flags = (
-        cv2.CALIB_RATIONAL_MODEL |
-        cv2.CALIB_THIN_PRISM_MODEL
-)
+final_flags = 0
 final_criteria = (
     cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_MAX_ITER,
     400,
     1e-7
 )
 
-prune_fraction = 0.1
+prune_fraction = 0.5
 
 # -----------------------------------------------------------------------------
 # 2) Loop over each camera
@@ -74,7 +71,7 @@ for cam in sorted(os.listdir(root_dir)):
         _, cc, cids = aruco.interpolateCornersCharuco(
             m_corners, m_ids, gray, board
         )
-        if cids is None or len(cids) < 4:
+        if cids is None or len(cids) < 20:
             continue
 
         pts = cc.reshape(-1,1,2)
@@ -115,6 +112,7 @@ for cam in sorted(os.listdir(root_dir)):
         )
         err = cv2.norm(charuco_corners[i], img_points_proj, cv2.NORM_L2) / len(img_points_proj)
         per_view_err.append(err)
+
 
     # -----------------------------------------------------------------------------
     # 5) Prune worst views

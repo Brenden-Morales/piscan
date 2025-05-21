@@ -43,7 +43,7 @@ min_valid_frames   = 25    # require ≥20 frames to calibrate
 max_rms_error      = 1.5   # px
 min_baseline_m     = 0.01  # 1 cm
 max_baseline_m     = 0.8   # 80 cm
-prune_fraction     = 0.1   # drop worst 20% of frames
+prune_fraction     = 0.5   # drop worst 20% of frames
 
 os.makedirs(calib_dir, exist_ok=True)
 
