@@ -213,7 +213,7 @@ class ReprojectionResidualSync(pyceres.CostFunction):
                 v_e = (Xci_e[1,0]/z_e)*fy + cy
                 res_e = np.array([u_e - self.uv[0], v_e - self.uv[1]], dtype=np.float64)
                 J[:, k] = (res_e - base_res) / eps
-            jacobians[0][:] = J
+            jacobians[0][:] = J.flatten()
 
         return True
 
@@ -268,7 +268,7 @@ class ReprojectionResidual(pyceres.CostFunction):
                     v_e = (Xci_e[1,0]/z_e)*fy + cy
                     res_e = np.array([u_e - self.uv[0], v_e - self.uv[1]], dtype=np.float64)
                     Jc[:, k] = (res_e - base_res) / eps
-                jacobians[0][:] = Jc
+                jacobians[0][:] = Jc.flatten()
             if jacobians[1] is not None:
                 Jb = np.zeros((2,6), dtype=np.float64)
                 board_base = board.astype(np.float64)
@@ -285,7 +285,7 @@ class ReprojectionResidual(pyceres.CostFunction):
                     v_e = (Xci_e[1,0]/z_e)*fy + cy
                     res_e = np.array([u_e - self.uv[0], v_e - self.uv[1]], dtype=np.float64)
                     Jb[:, k] = (res_e - base_res) / eps
-                jacobians[1][:] = Jb
+                jacobians[1][:] = Jb.flatten()
         return True
 
 # ----------------------------------------------------------------------------
