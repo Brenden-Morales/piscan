@@ -7,7 +7,7 @@ if [ -z "$GNOME_TERMINAL_SERVICE" ]; then
   exit 1
 fi
 
-gnome-terminal --tab --title="server" -- bash -ic 'pipenv run uvicorn ui_server:app --reload; exec bash'
+gnome-terminal --tab --title="server" -- bash -ic 'pipenv run uvicorn ui_server:app; exec bash'
 gnome-terminal --tab --title="ui" -- bash -ic 'cd ./svelteApp && npm run dev -- --host --port 3333; exec bash'
 gnome-terminal --tab --title="picam0" -- bash -ic "ssh -t picam@picam0.local 'python camera_server.py'; exec bash"
 gnome-terminal --tab --title="picam1" -- bash -ic "ssh -t picam@picam1.local 'python camera_server.py'; exec bash"
