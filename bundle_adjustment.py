@@ -164,13 +164,15 @@ board_params = {f: np.concatenate(board_init[f]).astype(np.float64) for f in fra
 # 8) Define residual classes manually
 # ----------------------------------------------------------------------------
 class ReprojectionResidualSync(pyceres.CostFunction):
-    def __init__(self, ci, pid, uv):
+    def __init__(self, ci, pid, uv, rvec_sync, tvec_sync):
         super().__init__()
         self.set_num_residuals(2)
         self.set_parameter_block_sizes([6])
         self.ci = ci
         self.pid = pid
         self.uv = uv
+        self.rvec_sync = np.asarray(rvec_sync, dtype=np.float64)
+        self.tvec_sync = np.asarray(tvec_sync, dtype=np.float64)
 
     def Evaluate(self, parameters, residuals, jacobians):
         cam = parameters[0]
@@ -178,7 +180,8 @@ class ReprojectionResidualSync(pyceres.CostFunction):
         tci = cam[3:6].reshape(3,1)
         Rci, _ = cv2.Rodrigues(rci)
 
-        Xw = chessboard_3D[self.pid].reshape(3,1)
+        Rbw, _ = cv2.Rodrigues(self.rvec_sync)
+        Xw = Rbw @ chessboard_3D[self.pid].reshape(3,1) + self.tvec_sync.reshape(3,1)
         Xci = Rci @ Xw + tci
         z = Xci[2,0]
 
@@ -243,7 +246,8 @@ for f in frames:
 
 for ci, f, pid, uv in obs:
     if f == sync_frame:
-        test_cost = ReprojectionResidualSync(ci, pid, uv)
+        r_sync, t_sync = board_init[sync_frame]
+        test_cost = ReprojectionResidualSync(ci, pid, uv, r_sync, t_sync)
         if test_cost.Evaluate([cam_params[ci]], [0.0, 0.0], None):
             problem.add_residual_block(test_cost, loss, [cam_params[ci]])
         else:
