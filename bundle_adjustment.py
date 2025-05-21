@@ -83,7 +83,6 @@ R0_inv = R0.T
 t0_inv = -R0_inv @ t0
 logger.info("Loaded initial camera poses and precomputed cam0→world")
 
-# ----------------------------------------------------------------------------
 # 5) Detect & convert board poses + cache observations
 # ----------------------------------------------------------------------------
 obs = []
@@ -103,7 +102,19 @@ for f in range(num_frames):
     und0 = cv2.undistortPoints(cc0, K[camera_names[0]], dist[camera_names[0]],
                                P=K[camera_names[0]]).reshape(-1,2)
     obj0 = np.array([chessboard_3D[int(cid)] for cid in cids0.flatten()])
-    _, r0, t0_cam0 = cv2.solvePnP(obj0, und0, K[camera_names[0]], None)
+
+    # --- NEW: Use solvePnPRansac and filter inliers ---
+    success, r0, t0_cam0, inliers = cv2.solvePnPRansac(
+        obj0, und0, K[camera_names[0]], None,
+        flags=cv2.SOLVEPNP_ITERATIVE
+    )
+    if not success or inliers is None or len(inliers) < min_corners:
+        continue
+
+    inlier_ids = cids0[inliers.flatten()]
+    obj0 = np.array([chessboard_3D[cid] for cid in inlier_ids.flatten()])
+    und0 = und0[inliers.flatten()]
+
     Rb_cam0, _ = cv2.Rodrigues(r0)
     tb_cam0 = t0_cam0.reshape(3,1)
 
