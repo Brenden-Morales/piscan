@@ -83,7 +83,6 @@ R0_inv = R0.T
 t0_inv = -R0_inv @ t0
 logger.info("Loaded initial camera poses and precomputed cam0→world")
 
-# ----------------------------------------------------------------------------
 # 5) Detect & convert board poses + cache observations
 # ----------------------------------------------------------------------------
 obs = []
@@ -93,24 +92,49 @@ img_lists = {cam: sorted(glob.glob(os.path.join(captures_dir, cam, '*.jpg')))
 num_frames = len(img_lists[camera_names[0]])
 
 for f in range(num_frames):
-    img0 = cv2.imread(img_lists[camera_names[0]][f])
-    gray0 = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
-    mc0, ids0, _ = cv2.aruco.detectMarkers(gray0, aruco_dict)
-    _, cc0, cids0 = cv2.aruco.interpolateCornersCharuco(mc0, ids0, gray0, board)
-    if cids0 is None or len(cids0) < min_corners:
-        continue
+    best_score = -1
+    best_rvec = best_tvec = None
+    best_cam_idx = -1
 
-    und0 = cv2.undistortPoints(cc0, K[camera_names[0]], dist[camera_names[0]],
-                               P=K[camera_names[0]]).reshape(-1,2)
-    obj0 = np.array([chessboard_3D[int(cid)] for cid in cids0.flatten()])
-    _, r0, t0_cam0 = cv2.solvePnP(obj0, und0, K[camera_names[0]], None)
-    Rb_cam0, _ = cv2.Rodrigues(r0)
-    tb_cam0 = t0_cam0.reshape(3,1)
+    # Try each camera to find best solvePnPRansac for board pose
+    for ci, cam in enumerate(camera_names):
+        img = cv2.imread(img_lists[cam][f])
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        mc, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict)
+        _, cc, cids = cv2.aruco.interpolateCornersCharuco(mc, ids, gray, board)
+        if cids is None or len(cids) < min_corners:
+            continue
+        und = cv2.undistortPoints(cc, K[cam], dist[cam], P=K[cam]).reshape(-1,2)
+        obj = np.array([chessboard_3D[int(cid)] for cid in cids.flatten()])
 
-    Rb_w = R0_inv @ Rb_cam0
-    tb_w = R0_inv @ (tb_cam0 - t0)
+        success, rvec, tvec, inliers = cv2.solvePnPRansac(obj, und, K[cam], None,
+                                                          flags=cv2.SOLVEPNP_ITERATIVE)
+        if not success or inliers is None or len(inliers) < min_corners:
+            continue
+
+        if len(inliers) > best_score:
+            best_score = len(inliers)
+            best_rvec = rvec
+            best_tvec = tvec
+            best_cam_idx = ci
+            best_inliers = inliers
+            best_cids = cids
+            best_und = und
+
+    if best_score < min_corners:
+        continue  # Skip frame if no camera has good enough view
+
+    # Compute board pose in cam0's world coordinate system
+    R_cam, _ = cv2.Rodrigues(cam_r0[best_cam_idx].reshape(3,1))
+    t_cam = cam_t0[best_cam_idx].reshape(3,1)
+    R_board, _ = cv2.Rodrigues(best_rvec)
+    t_board = best_tvec.reshape(3,1)
+
+    Rb_w = R_cam.T @ R_board
+    tb_w = R_cam.T @ (t_board - t_cam)
     board_init[f] = (cv2.Rodrigues(Rb_w)[0].flatten(), tb_w.flatten())
 
+    # Recompute filtered 2D obs for all cameras (including best_cam)
     for ci, cam in enumerate(camera_names):
         img = cv2.imread(img_lists[cam][f])
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -121,7 +145,6 @@ for f in range(num_frames):
         und = cv2.undistortPoints(cc, K[cam], dist[cam], P=K[cam]).reshape(-1,2)
         for i, pid in enumerate(cids.flatten()):
             obs.append((ci, f, int(pid), und[i]))
-logger.info("Collected %d observations over %d valid frames", len(obs), len(board_init))
 
 # ----------------------------------------------------------------------------
 # 6) Filter by depth
@@ -197,7 +220,7 @@ class ReprojectionResidualSync(pyceres.CostFunction):
         residuals[1] = float(v - self.uv[1])
 
         if jacobians is not None and jacobians[0] is not None:
-            eps = 1e-6
+            eps = 1e-4
             J = np.zeros((2,6), dtype=np.float64)
             base_res = np.array([residuals[0], residuals[1]], dtype=np.float64)
             cam_base = cam.astype(np.float64)
@@ -291,6 +314,59 @@ class ReprojectionResidual(pyceres.CostFunction):
 # ----------------------------------------------------------------------------
 # 9) Setup and solve problem
 # ----------------------------------------------------------------------------
+# (Assume the top half of your original script remains unchanged, up through problem setup)
+
+# ------------------ Compute reprojection errors ------------------
+def compute_reprojection_errors():
+    errors = []
+    for (idx, (ci, f, pid, uv)) in enumerate(obs):
+        cam = cam_params[ci]
+        if f == sync_frame:
+            r_sync, t_sync = board_init[sync_frame]
+            residual = ReprojectionResidualSync(ci, pid, uv, r_sync, t_sync)
+            if residual.Evaluate([cam], [0.0, 0.0], None):
+                fx, fy = K[camera_names[ci]][0,0], K[camera_names[ci]][1,1]
+                cx, cy = K[camera_names[ci]][0,2], K[camera_names[ci]][1,2]
+                rci = cam[:3]
+                tci = cam[3:6].reshape(3,1)
+                Rci, _ = cv2.Rodrigues(rci)
+                Rbw, _ = cv2.Rodrigues(r_sync)
+                Xw = Rbw @ chessboard_3D[pid].reshape(3,1) + t_sync.reshape(3,1)
+                Xci = Rci @ Xw + tci
+                z = Xci[2,0]
+                u = (Xci[0,0]/z)*fx + cx
+                v = (Xci[1,0]/z)*fy + cy
+                err = np.linalg.norm([u - uv[0], v - uv[1]])
+                errors.append(((err, ci, f, pid), (ci, f, pid, uv)))
+        else:
+            board = board_params[f]
+            residual = ReprojectionResidual(ci, pid, uv)
+            if residual.Evaluate([cam, board], [0.0, 0.0], None):
+                fx, fy = K[camera_names[ci]][0,0], K[camera_names[ci]][1,1]
+                cx, cy = K[camera_names[ci]][0,2], K[camera_names[ci]][1,2]
+                rci = cam[:3]
+                tci = cam[3:6].reshape(3,1)
+                Rci, _ = cv2.Rodrigues(rci)
+                rbw = board[:3]
+                tbw = board[3:6].reshape(3,1)
+                Rbw, _ = cv2.Rodrigues(rbw)
+                Xw = Rbw @ chessboard_3D[pid].reshape(3,1) + tbw
+                Xci = Rci @ Xw + tci
+                z = Xci[2,0]
+                u = (Xci[0,0]/z)*fx + cx
+                v = (Xci[1,0]/z)*fy + cy
+                err = np.linalg.norm([u - uv[0], v - uv[1]])
+                errors.append(((err, ci, f, pid), (ci, f, pid, uv)))
+    return sorted(errors, key=lambda x: -x[0][0])
+
+# ------------------ Prune worst 1% of residuals ------------------
+residual_errors = compute_reprojection_errors()
+keep_fraction = 0.98
+n_keep = int(len(residual_errors) * keep_fraction)
+obs_kept = [entry[1] for entry in residual_errors[:n_keep]]
+logger.info("Pruned %d worst residuals (keeping %d of %d)", len(residual_errors) - n_keep, n_keep, len(residual_errors))
+
+# ------------------ Setup and solve with pruned obs ------------------
 logger.info("Solving with Ceres")
 problem = pyceres.Problem()
 loss = pyceres.SoftLOneLoss(5.0)
@@ -300,21 +376,16 @@ for ci in range(ncams):
 for f in frames:
     problem.add_parameter_block(board_params[f], 6)
 
-for ci, f, pid, uv in obs:
+for ci, f, pid, uv in obs_kept:
     if f == sync_frame:
         r_sync, t_sync = board_init[sync_frame]
         test_cost = ReprojectionResidualSync(ci, pid, uv, r_sync, t_sync)
         if test_cost.Evaluate([cam_params[ci]], [0.0, 0.0], None):
             problem.add_residual_block(test_cost, loss, [cam_params[ci]])
-        else:
-            print(f"⚠️ Skipped invalid sync residual for ci={ci}, pid={pid}")
     else:
         test_cost = ReprojectionResidual(ci, pid, uv)
         if test_cost.Evaluate([cam_params[ci], board_params[f]], [0.0, 0.0], None):
             problem.add_residual_block(test_cost, loss, [cam_params[ci], board_params[f]])
-        else:
-            print(f"⚠️ Skipped invalid board residual for ci={ci}, pid={pid}, f={f}")
-
 
 options = pyceres.SolverOptions()
 options.max_num_iterations = 2000
@@ -323,9 +394,7 @@ summary = pyceres.SolverSummary()
 pyceres.solve(options, problem, summary)
 logger.info("BA done: final cost=%.6f", summary.final_cost)
 
-# ----------------------------------------------------------------------------
-# 10) Save optimized poses
-# ----------------------------------------------------------------------------
+# ------------------ Save optimized poses ------------------
 camera_poses = {}
 for i, cam in enumerate(camera_names):
     rvec = cam_params[i][:3]
@@ -337,3 +406,8 @@ os.makedirs('results', exist_ok=True)
 with open('calibration_results/camera_poses_ba.json', 'w') as f:
     json.dump(camera_poses, f, indent=2)
 logger.info("Saved optimized poses to results/camera_poses_ba.json")
+
+# ------------------ Print top residuals ------------------
+top_errors = residual_errors[:10]
+for err, ci, f, pid in [e[0] for e in top_errors]:
+    print(f"⚠️  Error={err:.2f} px | Camera={camera_names[ci]} | Frame={f} | ID={pid}")
