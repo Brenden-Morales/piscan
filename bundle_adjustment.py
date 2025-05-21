@@ -360,3 +360,51 @@ os.makedirs('results', exist_ok=True)
 with open('calibration_results/camera_poses_ba.json', 'w') as f:
     json.dump(camera_poses, f, indent=2)
 logger.info("Saved optimized poses to results/camera_poses_ba.json")
+
+def compute_reprojection_errors():
+    errors = []
+    for ci, f, pid, uv in obs:
+        cam = cam_params[ci]
+        if f == sync_frame:
+            r_sync, t_sync = board_init[sync_frame]
+            residual = ReprojectionResidualSync(ci, pid, uv, r_sync, t_sync)
+            if residual.Evaluate([cam], [0.0, 0.0], None):
+                fx, fy = K[camera_names[ci]][0,0], K[camera_names[ci]][1,1]
+                cx, cy = K[camera_names[ci]][0,2], K[camera_names[ci]][1,2]
+                rci = cam[:3]
+                tci = cam[3:6].reshape(3,1)
+                Rci, _ = cv2.Rodrigues(rci)
+                Rbw, _ = cv2.Rodrigues(r_sync)
+                Xw = Rbw @ chessboard_3D[pid].reshape(3,1) + t_sync.reshape(3,1)
+                Xci = Rci @ Xw + tci
+                z = Xci[2,0]
+                u = (Xci[0,0]/z)*fx + cx
+                v = (Xci[1,0]/z)*fy + cy
+                err = np.linalg.norm([u - uv[0], v - uv[1]])
+                errors.append((err, ci, f, pid))
+        else:
+            board = board_params[f]
+            residual = ReprojectionResidual(ci, pid, uv)
+            if residual.Evaluate([cam, board], [0.0, 0.0], None):
+                fx, fy = K[camera_names[ci]][0,0], K[camera_names[ci]][1,1]
+                cx, cy = K[camera_names[ci]][0,2], K[camera_names[ci]][1,2]
+                rci = cam[:3]
+                tci = cam[3:6].reshape(3,1)
+                Rci, _ = cv2.Rodrigues(rci)
+                rbw = board[:3]
+                tbw = board[3:6].reshape(3,1)
+                Rbw, _ = cv2.Rodrigues(rbw)
+                Xw = Rbw @ chessboard_3D[pid].reshape(3,1) + tbw
+                Xci = Rci @ Xw + tci
+                z = Xci[2,0]
+                u = (Xci[0,0]/z)*fx + cx
+                v = (Xci[1,0]/z)*fy + cy
+                err = np.linalg.norm([u - uv[0], v - uv[1]])
+                errors.append((err, ci, f, pid))
+
+    return sorted(errors, reverse=True)
+
+# Run and report top offenders
+top_errors = compute_reprojection_errors()[:10]
+for err, ci, f, pid in top_errors:
+    print(f"⚠️  Error={err:.2f} px | Camera={camera_names[ci]} | Frame={f} | ID={pid}")
