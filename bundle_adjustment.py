@@ -334,6 +334,6 @@ for i, cam in enumerate(camera_names):
     camera_poses[cam] = {'R': Ropt.tolist(), 'T': tvec.tolist()}
 
 os.makedirs('results', exist_ok=True)
-with open('results/camera_poses_ba.json', 'w') as f:
+with open('calibration_results/camera_poses_ba.json', 'w') as f:
     json.dump(camera_poses, f, indent=2)
 logger.info("Saved optimized poses to results/camera_poses_ba.json")
