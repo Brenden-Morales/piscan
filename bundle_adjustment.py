@@ -92,36 +92,49 @@ img_lists = {cam: sorted(glob.glob(os.path.join(captures_dir, cam, '*.jpg')))
 num_frames = len(img_lists[camera_names[0]])
 
 for f in range(num_frames):
-    img0 = cv2.imread(img_lists[camera_names[0]][f])
-    gray0 = cv2.cvtColor(img0, cv2.COLOR_BGR2GRAY)
-    mc0, ids0, _ = cv2.aruco.detectMarkers(gray0, aruco_dict)
-    _, cc0, cids0 = cv2.aruco.interpolateCornersCharuco(mc0, ids0, gray0, board)
-    if cids0 is None or len(cids0) < min_corners:
-        continue
+    best_score = -1
+    best_rvec = best_tvec = None
+    best_cam_idx = -1
 
-    und0 = cv2.undistortPoints(cc0, K[camera_names[0]], dist[camera_names[0]],
-                               P=K[camera_names[0]]).reshape(-1,2)
-    obj0 = np.array([chessboard_3D[int(cid)] for cid in cids0.flatten()])
+    # Try each camera to find best solvePnPRansac for board pose
+    for ci, cam in enumerate(camera_names):
+        img = cv2.imread(img_lists[cam][f])
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        mc, ids, _ = cv2.aruco.detectMarkers(gray, aruco_dict)
+        _, cc, cids = cv2.aruco.interpolateCornersCharuco(mc, ids, gray, board)
+        if cids is None or len(cids) < min_corners:
+            continue
+        und = cv2.undistortPoints(cc, K[cam], dist[cam], P=K[cam]).reshape(-1,2)
+        obj = np.array([chessboard_3D[int(cid)] for cid in cids.flatten()])
 
-    # --- NEW: Use solvePnPRansac and filter inliers ---
-    success, r0, t0_cam0, inliers = cv2.solvePnPRansac(
-        obj0, und0, K[camera_names[0]], None,
-        flags=cv2.SOLVEPNP_ITERATIVE
-    )
-    if not success or inliers is None or len(inliers) < min_corners:
-        continue
+        success, rvec, tvec, inliers = cv2.solvePnPRansac(obj, und, K[cam], None,
+                                                          flags=cv2.SOLVEPNP_ITERATIVE)
+        if not success or inliers is None or len(inliers) < min_corners:
+            continue
 
-    inlier_ids = cids0[inliers.flatten()]
-    obj0 = np.array([chessboard_3D[cid] for cid in inlier_ids.flatten()])
-    und0 = und0[inliers.flatten()]
+        if len(inliers) > best_score:
+            best_score = len(inliers)
+            best_rvec = rvec
+            best_tvec = tvec
+            best_cam_idx = ci
+            best_inliers = inliers
+            best_cids = cids
+            best_und = und
 
-    Rb_cam0, _ = cv2.Rodrigues(r0)
-    tb_cam0 = t0_cam0.reshape(3,1)
+    if best_score < min_corners:
+        continue  # Skip frame if no camera has good enough view
 
-    Rb_w = R0_inv @ Rb_cam0
-    tb_w = R0_inv @ (tb_cam0 - t0)
+    # Compute board pose in cam0's world coordinate system
+    R_cam, _ = cv2.Rodrigues(cam_r0[best_cam_idx].reshape(3,1))
+    t_cam = cam_t0[best_cam_idx].reshape(3,1)
+    R_board, _ = cv2.Rodrigues(best_rvec)
+    t_board = best_tvec.reshape(3,1)
+
+    Rb_w = R_cam.T @ R_board
+    tb_w = R_cam.T @ (t_board - t_cam)
     board_init[f] = (cv2.Rodrigues(Rb_w)[0].flatten(), tb_w.flatten())
 
+    # Recompute filtered 2D obs for all cameras (including best_cam)
     for ci, cam in enumerate(camera_names):
         img = cv2.imread(img_lists[cam][f])
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -132,7 +145,6 @@ for f in range(num_frames):
         und = cv2.undistortPoints(cc, K[cam], dist[cam], P=K[cam]).reshape(-1,2)
         for i, pid in enumerate(cids.flatten()):
             obs.append((ci, f, int(pid), und[i]))
-logger.info("Collected %d observations over %d valid frames", len(obs), len(board_init))
 
 # ----------------------------------------------------------------------------
 # 6) Filter by depth
