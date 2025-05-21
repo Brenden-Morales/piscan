@@ -220,7 +220,7 @@ class ReprojectionResidualSync(pyceres.CostFunction):
         residuals[1] = float(v - self.uv[1])
 
         if jacobians is not None and jacobians[0] is not None:
-            eps = 1e-6
+            eps = 1e-4
             J = np.zeros((2,6), dtype=np.float64)
             base_res = np.array([residuals[0], residuals[1]], dtype=np.float64)
             cam_base = cam.astype(np.float64)
