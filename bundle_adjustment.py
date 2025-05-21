@@ -195,6 +195,26 @@ class ReprojectionResidualSync(pyceres.CostFunction):
         v = (Xci[1,0]/z)*fy + cy
         residuals[0] = float(u - self.uv[0])
         residuals[1] = float(v - self.uv[1])
+
+        if jacobians is not None and jacobians[0] is not None:
+            eps = 1e-6
+            J = np.zeros((2,6), dtype=np.float64)
+            base_res = np.array([residuals[0], residuals[1]], dtype=np.float64)
+            cam_base = cam.astype(np.float64)
+            for k in range(6):
+                cam_eps = cam_base.copy()
+                cam_eps[k] += eps
+                rci_e = cam_eps[:3]
+                tci_e = cam_eps[3:6].reshape(3,1)
+                Rci_e, _ = cv2.Rodrigues(rci_e)
+                Xci_e = Rci_e @ Xw + tci_e
+                z_e = Xci_e[2,0]
+                u_e = (Xci_e[0,0]/z_e)*fx + cx
+                v_e = (Xci_e[1,0]/z_e)*fy + cy
+                res_e = np.array([u_e - self.uv[0], v_e - self.uv[1]], dtype=np.float64)
+                J[:, k] = (res_e - base_res) / eps
+            jacobians[0][:] = J
+
         return True
 
 class ReprojectionResidual(pyceres.CostFunction):
@@ -230,6 +250,42 @@ class ReprojectionResidual(pyceres.CostFunction):
         v = (Xci[1,0]/z)*fy + cy
         residuals[0] = float(u - self.uv[0])
         residuals[1] = float(v - self.uv[1])
+        if jacobians is not None:
+            eps = 1e-6
+            base_res = np.array([residuals[0], residuals[1]], dtype=np.float64)
+            if jacobians[0] is not None:
+                Jc = np.zeros((2,6), dtype=np.float64)
+                cam_base = cam.astype(np.float64)
+                for k in range(6):
+                    cam_eps = cam_base.copy()
+                    cam_eps[k] += eps
+                    rci_e = cam_eps[:3]
+                    tci_e = cam_eps[3:6].reshape(3,1)
+                    Rci_e, _ = cv2.Rodrigues(rci_e)
+                    Xci_e = Rci_e @ Xw + tci_e
+                    z_e = Xci_e[2,0]
+                    u_e = (Xci_e[0,0]/z_e)*fx + cx
+                    v_e = (Xci_e[1,0]/z_e)*fy + cy
+                    res_e = np.array([u_e - self.uv[0], v_e - self.uv[1]], dtype=np.float64)
+                    Jc[:, k] = (res_e - base_res) / eps
+                jacobians[0][:] = Jc
+            if jacobians[1] is not None:
+                Jb = np.zeros((2,6), dtype=np.float64)
+                board_base = board.astype(np.float64)
+                for k in range(6):
+                    board_eps = board_base.copy()
+                    board_eps[k] += eps
+                    rbw_e = board_eps[:3]
+                    tbw_e = board_eps[3:6].reshape(3,1)
+                    Rbw_e, _ = cv2.Rodrigues(rbw_e)
+                    Xw_e = Rbw_e @ chessboard_3D[self.pid].reshape(3,1) + tbw_e
+                    Xci_e = Rci @ Xw_e + tci
+                    z_e = Xci_e[2,0]
+                    u_e = (Xci_e[0,0]/z_e)*fx + cx
+                    v_e = (Xci_e[1,0]/z_e)*fy + cy
+                    res_e = np.array([u_e - self.uv[0], v_e - self.uv[1]], dtype=np.float64)
+                    Jb[:, k] = (res_e - base_res) / eps
+                jacobians[1][:] = Jb
         return True
 
 # ----------------------------------------------------------------------------
