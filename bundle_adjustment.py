@@ -314,56 +314,12 @@ class ReprojectionResidual(pyceres.CostFunction):
 # ----------------------------------------------------------------------------
 # 9) Setup and solve problem
 # ----------------------------------------------------------------------------
-logger.info("Solving with Ceres")
-problem = pyceres.Problem()
-loss = pyceres.SoftLOneLoss(5.0)
+# (Assume the top half of your original script remains unchanged, up through problem setup)
 
-for ci in range(ncams):
-    problem.add_parameter_block(cam_params[ci], 6)
-for f in frames:
-    problem.add_parameter_block(board_params[f], 6)
-
-for ci, f, pid, uv in obs:
-    if f == sync_frame:
-        r_sync, t_sync = board_init[sync_frame]
-        test_cost = ReprojectionResidualSync(ci, pid, uv, r_sync, t_sync)
-        if test_cost.Evaluate([cam_params[ci]], [0.0, 0.0], None):
-            problem.add_residual_block(test_cost, loss, [cam_params[ci]])
-        else:
-            print(f"⚠️ Skipped invalid sync residual for ci={ci}, pid={pid}")
-    else:
-        test_cost = ReprojectionResidual(ci, pid, uv)
-        if test_cost.Evaluate([cam_params[ci], board_params[f]], [0.0, 0.0], None):
-            problem.add_residual_block(test_cost, loss, [cam_params[ci], board_params[f]])
-        else:
-            print(f"⚠️ Skipped invalid board residual for ci={ci}, pid={pid}, f={f}")
-
-
-options = pyceres.SolverOptions()
-options.max_num_iterations = 2000
-options.minimizer_progress_to_stdout = True
-summary = pyceres.SolverSummary()
-pyceres.solve(options, problem, summary)
-logger.info("BA done: final cost=%.6f", summary.final_cost)
-
-# ----------------------------------------------------------------------------
-# 10) Save optimized poses
-# ----------------------------------------------------------------------------
-camera_poses = {}
-for i, cam in enumerate(camera_names):
-    rvec = cam_params[i][:3]
-    tvec = cam_params[i][3:6]
-    Ropt, _ = cv2.Rodrigues(rvec)
-    camera_poses[cam] = {'R': Ropt.tolist(), 'T': tvec.tolist()}
-
-os.makedirs('results', exist_ok=True)
-with open('calibration_results/camera_poses_ba.json', 'w') as f:
-    json.dump(camera_poses, f, indent=2)
-logger.info("Saved optimized poses to results/camera_poses_ba.json")
-
+# ------------------ Compute reprojection errors ------------------
 def compute_reprojection_errors():
     errors = []
-    for ci, f, pid, uv in obs:
+    for (idx, (ci, f, pid, uv)) in enumerate(obs):
         cam = cam_params[ci]
         if f == sync_frame:
             r_sync, t_sync = board_init[sync_frame]
@@ -381,7 +337,7 @@ def compute_reprojection_errors():
                 u = (Xci[0,0]/z)*fx + cx
                 v = (Xci[1,0]/z)*fy + cy
                 err = np.linalg.norm([u - uv[0], v - uv[1]])
-                errors.append((err, ci, f, pid))
+                errors.append(((err, ci, f, pid), (ci, f, pid, uv)))
         else:
             board = board_params[f]
             residual = ReprojectionResidual(ci, pid, uv)
@@ -400,11 +356,58 @@ def compute_reprojection_errors():
                 u = (Xci[0,0]/z)*fx + cx
                 v = (Xci[1,0]/z)*fy + cy
                 err = np.linalg.norm([u - uv[0], v - uv[1]])
-                errors.append((err, ci, f, pid))
+                errors.append(((err, ci, f, pid), (ci, f, pid, uv)))
+    return sorted(errors, key=lambda x: -x[0][0])
 
-    return sorted(errors, reverse=True)
+# ------------------ Prune worst 1% of residuals ------------------
+residual_errors = compute_reprojection_errors()
+keep_fraction = 0.98
+n_keep = int(len(residual_errors) * keep_fraction)
+obs_kept = [entry[1] for entry in residual_errors[:n_keep]]
+logger.info("Pruned %d worst residuals (keeping %d of %d)", len(residual_errors) - n_keep, n_keep, len(residual_errors))
 
-# Run and report top offenders
-top_errors = compute_reprojection_errors()[:10]
-for err, ci, f, pid in top_errors:
+# ------------------ Setup and solve with pruned obs ------------------
+logger.info("Solving with Ceres")
+problem = pyceres.Problem()
+loss = pyceres.SoftLOneLoss(5.0)
+
+for ci in range(ncams):
+    problem.add_parameter_block(cam_params[ci], 6)
+for f in frames:
+    problem.add_parameter_block(board_params[f], 6)
+
+for ci, f, pid, uv in obs_kept:
+    if f == sync_frame:
+        r_sync, t_sync = board_init[sync_frame]
+        test_cost = ReprojectionResidualSync(ci, pid, uv, r_sync, t_sync)
+        if test_cost.Evaluate([cam_params[ci]], [0.0, 0.0], None):
+            problem.add_residual_block(test_cost, loss, [cam_params[ci]])
+    else:
+        test_cost = ReprojectionResidual(ci, pid, uv)
+        if test_cost.Evaluate([cam_params[ci], board_params[f]], [0.0, 0.0], None):
+            problem.add_residual_block(test_cost, loss, [cam_params[ci], board_params[f]])
+
+options = pyceres.SolverOptions()
+options.max_num_iterations = 2000
+options.minimizer_progress_to_stdout = True
+summary = pyceres.SolverSummary()
+pyceres.solve(options, problem, summary)
+logger.info("BA done: final cost=%.6f", summary.final_cost)
+
+# ------------------ Save optimized poses ------------------
+camera_poses = {}
+for i, cam in enumerate(camera_names):
+    rvec = cam_params[i][:3]
+    tvec = cam_params[i][3:6]
+    Ropt, _ = cv2.Rodrigues(rvec)
+    camera_poses[cam] = {'R': Ropt.tolist(), 'T': tvec.tolist()}
+
+os.makedirs('results', exist_ok=True)
+with open('calibration_results/camera_poses_ba.json', 'w') as f:
+    json.dump(camera_poses, f, indent=2)
+logger.info("Saved optimized poses to results/camera_poses_ba.json")
+
+# ------------------ Print top residuals ------------------
+top_errors = residual_errors[:10]
+for err, ci, f, pid in [e[0] for e in top_errors]:
     print(f"⚠️  Error={err:.2f} px | Camera={camera_names[ci]} | Frame={f} | ID={pid}")
