@@ -14,3 +14,6 @@ Then "stereo_calibration.py" can be run to calculate the stereo relationships of
 Finally, "bundle_adjustment.py" can be run.
 
 This is a sequential process that depends on the output of the previous script.
+
+
+Make sure any python commands are run with `pipenv run`
