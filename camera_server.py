@@ -30,6 +30,20 @@ def start_server(host):
                     message = data.decode()
                     print("received message: {}".format(message))
                     if message == SocketUtils.TAKE_SNAPSHOT:
+                        # Set autofocus mode to 'Auto'
+                        picam2.set_controls({"AfMode": 1})  # Auto focus mode
+                        # Trigger a focus scan
+                        picam2.set_controls({"AfTrigger": 0})  # 0 = Start scan
+
+                        # Wait for focus to complete
+                        while True:
+                            af_state = picam2.capture_metadata().get("AfState", None)
+                            print("AF State:", af_state)
+                            if af_state in [2, 3]:  # 2 = focused, 3 = failed
+                                break
+                            time.sleep(0.1)
+
+                        # Take the picture after autofocus
                         picam2.capture_file("snap.jpg")
                         with open("snap.jpg", 'rb') as file:
                             byte_array = bytearray(file.read())
