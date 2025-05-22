@@ -4,6 +4,8 @@ import glob
 import json
 import logging
 import os
+import time
+from contextlib import contextmanager
 from typing import Dict, List, Tuple, Set
 
 import cv2
@@ -19,6 +21,18 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("BA-Ceres")
+
+
+@contextmanager
+def log_timing(message: str):
+    """Context manager to log the duration of long running operations."""
+    logger.info("%s...", message)
+    start = time.time()
+    try:
+        yield
+    finally:
+        elapsed = time.time() - start
+        logger.info("%s completed in %.2f seconds", message, elapsed)
 
 # ---------------------------------------------------------------------------
 # Constants and configuration
@@ -101,6 +115,7 @@ def detect_board_poses(
         cam: sorted(glob.glob(os.path.join(CAPTURES_DIR, cam, "*.jpg"))) for cam in CAMERA_NAMES
     }
     num_frames = len(img_lists[CAMERA_NAMES[0]])
+    logger.info("Detecting board poses in %d frames from %d cameras", num_frames, len(CAMERA_NAMES))
 
     for f in range(num_frames):
         best_score = -1
@@ -153,6 +168,11 @@ def detect_board_poses(
             und = cv2.undistortPoints(cc, K[cam], dist[cam], P=K[cam]).reshape(-1, 2)
             for i, pid in enumerate(cids.flatten()):
                 obs.append((ci, f, int(pid), und[i]))
+    logger.info(
+        "Detected board poses for %d frames resulting in %d observations",
+        len(board_init),
+        len(obs),
+    )
     return board_init, obs
 
 
@@ -164,6 +184,7 @@ def filter_by_depth(
     chessboard_3d: np.ndarray,
 ) -> List[Tuple[int, int, int, np.ndarray]]:
     """Remove observations that project behind the camera."""
+    logger.info("Filtering %d observations by depth", len(obs))
     filtered = []
     for ci, f, pid, uv in obs:
         rvec_w, tvec_w = board_init[f]
@@ -356,6 +377,7 @@ def compute_reprojection_errors(
     sync_frame: int,
 ) -> List[Tuple[Tuple[float, int, int, int], Tuple[int, int, int, np.ndarray]]]:
     """Compute reprojection error for each observation."""
+    logger.info("Computing reprojection errors for %d observations", len(obs))
     errors = []
     for ci, f, pid, uv in obs:
         cam = cam_params[ci]
@@ -395,6 +417,11 @@ def compute_reprojection_errors(
                 v = (Xci[1, 0] / z) * fy + cy
                 err = np.linalg.norm([u - uv[0], v - uv[1]])
                 errors.append(((err, ci, f, pid), (ci, f, pid, uv)))
+    if errors:
+        mean_err = float(np.mean([e[0][0] for e in errors]))
+        logger.info("Computed reprojection errors (mean %.2f px)", mean_err)
+    else:
+        logger.info("No valid reprojection errors computed")
     return sorted(errors, key=lambda x: -x[0][0])
 
 
@@ -407,7 +434,11 @@ def solve_bundle_adjustment(
     sync_frame: int,
 ) -> pyceres.SolverSummary:
     """Set up and solve the Ceres problem."""
-    logger.info("Solving with Ceres")
+    logger.info(
+        "Solving with Ceres using %d observations and %d frames",
+        len(obs_kept),
+        len(frames),
+    )
     problem = pyceres.Problem()
     loss = pyceres.SoftLOneLoss(5.0)
 
@@ -466,6 +497,9 @@ def prune_frames_to_target(
     Set[int]
 ]:
     """Prune the worst frames by mean reprojection error until target_frames remain."""
+    logger.info(
+        "Pruning frames to target of %d from %d frames", target_frames, len(frames)
+    )
     from collections import defaultdict
     import numpy as np
 
@@ -519,6 +553,9 @@ def prune_residuals_by_percent_and_error(
         n_keep=50000,
         max_error_px=1000,
 ):
+    logger.info(
+        "Pruning residuals to top %d with max error %.0f px", n_keep, max_error_px
+    )
     kept = [
         entry[1] for entry in residual_errors[:n_keep]
         if entry[0][0] < max_error_px
@@ -537,21 +574,33 @@ def main() -> None:
     K, dist = load_intrinsics(CAMERA_NAMES, INTRINSICS_DIR)
     cam_rvecs, cam_tvecs = load_initial_poses(INTRINSICS_DIR, CAMERA_NAMES)
 
-    board_init, obs = detect_board_poses(board, dictionary, chessboard_3D, cam_rvecs, cam_tvecs, K, dist)
-    obs = filter_by_depth(obs, board_init, cam_rvecs, cam_tvecs, chessboard_3D)
+    with log_timing("Detecting board poses"):
+        board_init, obs = detect_board_poses(
+            board, dictionary, chessboard_3D, cam_rvecs, cam_tvecs, K, dist
+        )
+
+    with log_timing("Filtering observations by depth"):
+        obs = filter_by_depth(obs, board_init, cam_rvecs, cam_tvecs, chessboard_3D)
 
     sync_frame = select_sync_frame(board_init)
 
     frames, cam_params, board_params = initialize_parameters(board_init, cam_rvecs, cam_tvecs, sync_frame)
 
-    residual_errors = compute_reprojection_errors(obs, cam_params, board_params, board_init, sync_frame)
+    with log_timing("Computing reprojection errors"):
+        residual_errors = compute_reprojection_errors(
+            obs, cam_params, board_params, board_init, sync_frame
+        )
 
-    residual_errors, board_params, board_init, frames, bad_frames = prune_frames_to_target(
-        residual_errors, board_params, board_init, frames, sync_frame, TARGET_FRAMES
-    )
+    with log_timing("Pruning frames"):
+        residual_errors, board_params, board_init, frames, bad_frames = prune_frames_to_target(
+            residual_errors, board_params, board_init, frames, sync_frame, TARGET_FRAMES
+        )
 
     n_keep = min(len(residual_errors), TARGET_RESIDUALS)
-    obs_kept = prune_residuals_by_percent_and_error(residual_errors, n_keep=n_keep, max_error_px=1000)
+    with log_timing("Pruning residuals"):
+        obs_kept = prune_residuals_by_percent_and_error(
+            residual_errors, n_keep=n_keep, max_error_px=1000
+        )
 
     logger.info(
         "Kept %d residuals out of %d after pruning",
@@ -559,7 +608,10 @@ def main() -> None:
         len(residual_errors),
     )
 
-    summary = solve_bundle_adjustment(cam_params, board_params, obs_kept, board_init, frames, sync_frame)
+    with log_timing("Solving bundle adjustment"):
+        summary = solve_bundle_adjustment(
+            cam_params, board_params, obs_kept, board_init, frames, sync_frame
+        )
 
     save_camera_poses(cam_params)
 
