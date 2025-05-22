@@ -623,7 +623,7 @@ def main() -> None:
 
     logger.info("Top 10 highest residuals among retained observations:")
     for err, ci, f, pid in [e[0] for e in top_kept_sorted]:
-        print(
+        logger.info(
             f"⚠️  Kept Error={err:.2f} px | Camera={CAMERA_NAMES[ci]} | Frame={f} | ID={pid}"
         )
 
