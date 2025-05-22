@@ -4,7 +4,7 @@ import glob
 import json
 import logging
 import os
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Set
 
 import cv2
 import numpy as np
@@ -420,6 +420,45 @@ def save_camera_poses(cam_params: List[np.ndarray]) -> None:
     logger.info("Saved optimized poses to results/camera_poses_ba.json")
 
 
+def prune_bad_frames_by_error(
+        residual_errors: List[Tuple[Tuple[float, int, int, int], Tuple[int, int, int, np.ndarray]]],
+        board_params: Dict[int, np.ndarray],
+        board_init: Dict[int, Tuple[np.ndarray, np.ndarray]],
+        frames: List[int],
+        threshold: float = 5.0
+    ) -> Tuple[List[Tuple[Tuple[float, int, int, int], Tuple[int, int, int, np.ndarray]]],
+    Dict[int, np.ndarray],
+    Dict[int, Tuple[np.ndarray, np.ndarray]],
+    List[int],
+    Set[int]]:
+    """Prune frames whose mean reprojection error exceeds the threshold."""
+    from collections import defaultdict
+
+    frame_errors = defaultdict(list)
+    for (err, ci, f, pid), _ in residual_errors:
+        frame_errors[f].append(err)
+
+    frame_mean_error = {f: np.mean(errs) for f, errs in frame_errors.items()}
+    bad_frames = {f for f, mean_err in frame_mean_error.items() if mean_err > threshold}
+
+    residual_errors_pruned = [
+        entry for entry in residual_errors
+        if entry[1][1] not in bad_frames or entry[1][1] == SYNC_FRAME
+    ]
+    logger.info("Kept %d residuals after pruning", len(residual_errors_pruned))
+    board_params_pruned = {f: p for f, p in board_params.items() if f not in bad_frames}
+    board_init_pruned = {f: p for f, p in board_init.items() if f not in bad_frames or f == SYNC_FRAME}
+    frames_pruned = [f for f in frames if f not in bad_frames]
+
+    good_frames = sorted(f for f in frame_mean_error if f not in bad_frames or f == SYNC_FRAME)
+
+    logger.info("✔️  Good frames kept (%d): %s", len(good_frames), good_frames)
+    logger.info("❌  Bad frames pruned (%d): %s", len(bad_frames), sorted(bad_frames))
+
+    return residual_errors_pruned, board_params_pruned, board_init_pruned, frames_pruned, bad_frames
+
+
+
 def main() -> None:
     global K, chessboard_3D
 
@@ -434,24 +473,31 @@ def main() -> None:
     frames, cam_params, board_params = initialize_parameters(board_init, cam_rvecs, cam_tvecs)
 
     residual_errors = compute_reprojection_errors(obs, cam_params, board_params, board_init)
+
+    residual_errors, board_params, board_init, frames, bad_frames = prune_bad_frames_by_error(
+        residual_errors, board_params, board_init, frames, threshold=500
+    )
+
     keep_fraction = 0.98
     n_keep = int(len(residual_errors) * keep_fraction)
     obs_kept = [entry[1] for entry in residual_errors[:n_keep]]
+
     logger.info(
-        "Pruned %d worst residuals (keeping %d of %d)",
-        len(residual_errors) - n_keep,
-        n_keep,
-        len(residual_errors),
-    )
+            "Pruned %d worst residuals (keeping %d of %d)",
+            len(residual_errors) - n_keep,
+            n_keep,
+            len(residual_errors),
+        )
 
     summary = solve_bundle_adjustment(cam_params, board_params, obs_kept, board_init, frames)
 
     save_camera_poses(cam_params)
 
     top_errors = residual_errors[:10]
+    logger.info("Top 10 highest residuals among kept observations:")
     for err, ci, f, pid in [e[0] for e in top_errors]:
         print(
-            f"⚠️  Error={err:.2f} px | Camera={CAMERA_NAMES[ci]} | Frame={f} | ID={pid}"
+            f"⚠️  Kept Error={err:.2f} px | Camera={CAMERA_NAMES[ci]} | Frame={f} | ID={pid}"
         )
 
 
