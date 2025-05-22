@@ -32,7 +32,6 @@ CAMERA_NAMES = [f"picam{i}.local" for i in range(6)]
 INTRINSICS_DIR = "calibration_results"
 CAPTURES_DIR = "captures"
 MIN_CORNERS = 50
-SYNC_FRAME = 0
 
 # ---------------------------------------------------------------------------
 # Utility functions
@@ -177,14 +176,40 @@ def filter_by_depth(
     return filtered
 
 
+def select_sync_frame(board_init: Dict[int, Tuple[np.ndarray, np.ndarray]]) -> int:
+    """Select the frame whose board pose is closest to the mean pose."""
+    if not board_init:
+        raise ValueError("No board poses detected to select sync frame from")
+
+    rvecs = np.array([pose[0] for pose in board_init.values()], dtype=np.float64)
+    tvecs = np.array([pose[1] for pose in board_init.values()], dtype=np.float64)
+
+    mean_rvec = np.mean(rvecs, axis=0)
+    mean_tvec = np.mean(tvecs, axis=0)
+
+    best_frame = None
+    best_score = np.inf
+    for f, (rvec, tvec) in board_init.items():
+        dr = np.linalg.norm(np.asarray(rvec) - mean_rvec)
+        dt = np.linalg.norm(np.asarray(tvec) - mean_tvec)
+        score = dr + dt
+        if score < best_score:
+            best_score = score
+            best_frame = f
+
+    logger.info("Selected frame %d as SYNC_FRAME (score %.3f)", best_frame, best_score)
+    return int(best_frame)
+
+
 def initialize_parameters(
     board_init: Dict[int, Tuple[np.ndarray, np.ndarray]],
     cam_rvecs: List[np.ndarray],
     cam_tvecs: List[np.ndarray],
+    sync_frame: int,
 ) -> Tuple[List[int], List[np.ndarray], Dict[int, np.ndarray]]:
     """Create parameter arrays for cameras and boards."""
     ncams = len(cam_rvecs)
-    frames = sorted([f for f in board_init if f != SYNC_FRAME])
+    frames = sorted([f for f in board_init if f != sync_frame])
     cam_params = [np.concatenate([cam_rvecs[i], cam_tvecs[i]]).astype(np.float64) for i in range(ncams)]
     board_params = {f: np.concatenate(board_init[f]).astype(np.float64) for f in frames}
     return frames, cam_params, board_params
@@ -324,13 +349,14 @@ def compute_reprojection_errors(
     cam_params: List[np.ndarray],
     board_params: Dict[int, np.ndarray],
     board_init: Dict[int, Tuple[np.ndarray, np.ndarray]],
+    sync_frame: int,
 ) -> List[Tuple[Tuple[float, int, int, int], Tuple[int, int, int, np.ndarray]]]:
     """Compute reprojection error for each observation."""
     errors = []
     for ci, f, pid, uv in obs:
         cam = cam_params[ci]
-        if f == SYNC_FRAME:
-            r_sync, t_sync = board_init[SYNC_FRAME]
+        if f == sync_frame:
+            r_sync, t_sync = board_init[sync_frame]
             residual = ReprojectionResidualSync(ci, pid, uv, r_sync, t_sync)
             if residual.Evaluate([cam], [0.0, 0.0], None):
                 fx, fy = K[CAMERA_NAMES[ci]][0, 0], K[CAMERA_NAMES[ci]][1, 1]
@@ -374,6 +400,7 @@ def solve_bundle_adjustment(
     obs_kept: List[Tuple[int, int, int, np.ndarray]],
     board_init: Dict[int, Tuple[np.ndarray, np.ndarray]],
     frames: List[int],
+    sync_frame: int,
 ) -> pyceres.SolverSummary:
     """Set up and solve the Ceres problem."""
     logger.info("Solving with Ceres")
@@ -386,8 +413,8 @@ def solve_bundle_adjustment(
         problem.add_parameter_block(board_params[f], 6)
 
     for ci, f, pid, uv in obs_kept:
-        if f == SYNC_FRAME:
-            r_sync, t_sync = board_init[SYNC_FRAME]
+        if f == sync_frame:
+            r_sync, t_sync = board_init[sync_frame]
             cost = ReprojectionResidualSync(ci, pid, uv, r_sync, t_sync)
             if cost.Evaluate([cam_params[ci]], [0.0, 0.0], None):
                 problem.add_residual_block(cost, loss, [cam_params[ci]])
@@ -425,6 +452,7 @@ def prune_bad_frames_by_error(
         board_params: Dict[int, np.ndarray],
         board_init: Dict[int, Tuple[np.ndarray, np.ndarray]],
         frames: List[int],
+        sync_frame: int,
         prune_fraction: float = 0.2  # Top 20% of frames to remove
 ) -> Tuple[
     List[Tuple[Tuple[float, int, int, int], Tuple[int, int, int, np.ndarray]]],
@@ -449,13 +477,13 @@ def prune_bad_frames_by_error(
 
     residual_errors_pruned = [
         entry for entry in residual_errors
-        if entry[1][1] not in bad_frames or entry[1][1] == SYNC_FRAME
+        if entry[1][1] not in bad_frames or entry[1][1] == sync_frame
     ]
     board_params_pruned = {f: p for f, p in board_params.items() if f not in bad_frames}
-    board_init_pruned = {f: p for f, p in board_init.items() if f not in bad_frames or f == SYNC_FRAME}
+    board_init_pruned = {f: p for f, p in board_init.items() if f not in bad_frames or f == sync_frame}
     frames_pruned = [f for f in frames if f not in bad_frames]
 
-    good_frames = sorted(f for f in frame_mean_error if f not in bad_frames or f == SYNC_FRAME)
+    good_frames = sorted(f for f in frame_mean_error if f not in bad_frames or f == sync_frame)
 
     logger.info("Pruning top %.0f%% worst frames by mean reprojection error", prune_fraction * 100)
     logger.info("✔️  Good frames kept (%d): %s", len(good_frames), good_frames)
@@ -477,12 +505,15 @@ def main() -> None:
 
     board_init, obs = detect_board_poses(board, dictionary, chessboard_3D, cam_rvecs, cam_tvecs, K, dist)
     obs = filter_by_depth(obs, board_init, cam_rvecs, cam_tvecs, chessboard_3D)
-    frames, cam_params, board_params = initialize_parameters(board_init, cam_rvecs, cam_tvecs)
 
-    residual_errors = compute_reprojection_errors(obs, cam_params, board_params, board_init)
+    sync_frame = select_sync_frame(board_init)
+
+    frames, cam_params, board_params = initialize_parameters(board_init, cam_rvecs, cam_tvecs, sync_frame)
+
+    residual_errors = compute_reprojection_errors(obs, cam_params, board_params, board_init, sync_frame)
 
     residual_errors, board_params, board_init, frames, bad_frames = prune_bad_frames_by_error(
-        residual_errors, board_params, board_init, frames, prune_fraction=0.2
+        residual_errors, board_params, board_init, frames, sync_frame, prune_fraction=0.2
     )
 
     keep_fraction = 0.98
@@ -496,7 +527,7 @@ def main() -> None:
             len(residual_errors),
         )
 
-    summary = solve_bundle_adjustment(cam_params, board_params, obs_kept, board_init, frames)
+    summary = solve_bundle_adjustment(cam_params, board_params, obs_kept, board_init, frames, sync_frame)
 
     save_camera_poses(cam_params)
 
