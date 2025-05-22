@@ -34,8 +34,8 @@ CAPTURES_DIR = "captures"
 MIN_CORNERS = 50
 
 # Target counts used during pruning
-TARGET_FRAMES = 30
-TARGET_RESIDUALS = 5000
+TARGET_FRAMES = 40
+TARGET_RESIDUALS = 55000
 
 # ---------------------------------------------------------------------------
 # Utility functions
