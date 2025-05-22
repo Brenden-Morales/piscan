@@ -33,6 +33,10 @@ INTRINSICS_DIR = "calibration_results"
 CAPTURES_DIR = "captures"
 MIN_CORNERS = 50
 
+# Target counts used during pruning
+TARGET_FRAMES = 30
+TARGET_RESIDUALS = 5000
+
 # ---------------------------------------------------------------------------
 # Utility functions
 # ---------------------------------------------------------------------------
@@ -447,13 +451,13 @@ def save_camera_poses(cam_params: List[np.ndarray]) -> None:
     logger.info("Saved optimized poses to results/camera_poses_ba.json")
 
 
-def prune_bad_frames_by_error(
-        residual_errors: List[Tuple[Tuple[float, int, int, int], Tuple[int, int, int, np.ndarray]]],
-        board_params: Dict[int, np.ndarray],
-        board_init: Dict[int, Tuple[np.ndarray, np.ndarray]],
-        frames: List[int],
-        sync_frame: int,
-        prune_fraction: float = 0.2  # Top 20% of frames to remove
+def prune_frames_to_target(
+    residual_errors: List[Tuple[Tuple[float, int, int, int], Tuple[int, int, int, np.ndarray]]],
+    board_params: Dict[int, np.ndarray],
+    board_init: Dict[int, Tuple[np.ndarray, np.ndarray]],
+    frames: List[int],
+    sync_frame: int,
+    target_frames: int,
 ) -> Tuple[
     List[Tuple[Tuple[float, int, int, int], Tuple[int, int, int, np.ndarray]]],
     Dict[int, np.ndarray],
@@ -461,7 +465,7 @@ def prune_bad_frames_by_error(
     List[int],
     Set[int]
 ]:
-    """Prune the top N% worst frames by mean reprojection error."""
+    """Prune the worst frames by mean reprojection error until target_frames remain."""
     from collections import defaultdict
     import numpy as np
 
@@ -469,26 +473,43 @@ def prune_bad_frames_by_error(
     for (err, ci, f, pid), _ in residual_errors:
         frame_errors[f].append(err)
 
-    frame_mean_error = {f: np.mean(errs) for f, errs in frame_errors.items()}
-    sorted_frames = sorted(frame_mean_error.items(), key=lambda x: x[1], reverse=True)
+    if sync_frame not in frame_errors:
+        frame_errors[sync_frame] = []
 
-    n_prune = int(len(sorted_frames) * prune_fraction)
-    bad_frames = {f for f, _ in sorted_frames[:n_prune]}
+    n_total = len(frame_errors)
+    target_frames = max(1, target_frames)
+    frames_to_remove = max(0, n_total - target_frames)
+
+    if frames_to_remove <= 0:
+        logger.info("Target frame count %d >= available frames %d - no pruning", target_frames, n_total)
+        return residual_errors, board_params, board_init, frames, set()
+
+    frame_mean_error = {f: np.mean(errs) for f, errs in frame_errors.items()}
+    sorted_frames = sorted(
+        [(f, e) for f, e in frame_mean_error.items() if f != sync_frame],
+        key=lambda x: x[1],
+        reverse=True,
+    )
+
+    bad_frames = {f for f, _ in sorted_frames[:frames_to_remove]}
 
     residual_errors_pruned = [
-        entry for entry in residual_errors
-        if entry[1][1] not in bad_frames or entry[1][1] == sync_frame
+        entry for entry in residual_errors if entry[1][1] not in bad_frames
     ]
     board_params_pruned = {f: p for f, p in board_params.items() if f not in bad_frames}
-    board_init_pruned = {f: p for f, p in board_init.items() if f not in bad_frames or f == sync_frame}
+    board_init_pruned = {f: p for f, p in board_init.items() if f not in bad_frames}
     frames_pruned = [f for f in frames if f not in bad_frames]
 
-    good_frames = sorted(f for f in frame_mean_error if f not in bad_frames or f == sync_frame)
+    good_frames = sorted(f for f in frame_mean_error if f not in bad_frames)
 
-    logger.info("Pruning top %.0f%% worst frames by mean reprojection error", prune_fraction * 100)
+    logger.info(
+        "Pruning to %d frames: removed %d frames with highest reprojection error",
+        target_frames,
+        len(bad_frames),
+    )
     logger.info("✔️  Good frames kept (%d): %s", len(good_frames), good_frames)
     logger.info("❌  Bad frames pruned (%d): %s", len(bad_frames), sorted(bad_frames))
-    logger.info("Kept %d residuals after pruning", len(residual_errors_pruned))
+    logger.info("Kept %d residuals after frame pruning", len(residual_errors_pruned))
 
     return residual_errors_pruned, board_params_pruned, board_init_pruned, frames_pruned, bad_frames
 
@@ -512,20 +533,18 @@ def main() -> None:
 
     residual_errors = compute_reprojection_errors(obs, cam_params, board_params, board_init, sync_frame)
 
-    residual_errors, board_params, board_init, frames, bad_frames = prune_bad_frames_by_error(
-        residual_errors, board_params, board_init, frames, sync_frame, prune_fraction=0.2
+    residual_errors, board_params, board_init, frames, bad_frames = prune_frames_to_target(
+        residual_errors, board_params, board_init, frames, sync_frame, TARGET_FRAMES
     )
 
-    keep_fraction = 0.98
-    n_keep = int(len(residual_errors) * keep_fraction)
+    n_keep = min(len(residual_errors), TARGET_RESIDUALS)
     obs_kept = [entry[1] for entry in residual_errors[:n_keep]]
 
     logger.info(
-            "Pruned %d worst residuals (keeping %d of %d)",
-            len(residual_errors) - n_keep,
-            n_keep,
-            len(residual_errors),
-        )
+        "Kept %d residuals out of %d after pruning",
+        n_keep,
+        len(residual_errors),
+    )
 
     summary = solve_bundle_adjustment(cam_params, board_params, obs_kept, board_init, frames, sync_frame)
 
