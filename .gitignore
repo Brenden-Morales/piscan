@@ -1,1 +1,4 @@
 /captures/
+/calibration_results/
+/.venv/
+/pruned_views/
