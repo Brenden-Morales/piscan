@@ -514,6 +514,19 @@ def prune_frames_to_target(
     return residual_errors_pruned, board_params_pruned, board_init_pruned, frames_pruned, bad_frames
 
 
+def prune_residuals_by_percent_and_error(
+        residual_errors,
+        n_keep=50000,
+        max_error_px=1000,
+):
+    kept = [
+        entry[1] for entry in residual_errors[:n_keep]
+        if entry[0][0] < max_error_px
+    ]
+    logger.info("Pruned to %d residuals (max error=%.0fpx)", len(kept), max_error_px)
+    return kept
+
+
 
 def main() -> None:
     global K, chessboard_3D
@@ -538,7 +551,7 @@ def main() -> None:
     )
 
     n_keep = min(len(residual_errors), TARGET_RESIDUALS)
-    obs_kept = [entry[1] for entry in residual_errors[:n_keep]]
+    obs_kept = prune_residuals_by_percent_and_error(residual_errors, n_keep=n_keep, max_error_px=1000)
 
     logger.info(
         "Kept %d residuals out of %d after pruning",
@@ -550,9 +563,14 @@ def main() -> None:
 
     save_camera_poses(cam_params)
 
-    top_errors = residual_errors[:10]
-    logger.info("Top 10 highest residuals among kept observations:")
-    for err, ci, f, pid in [e[0] for e in top_errors]:
+    top_kept = [
+        entry for entry in residual_errors
+        if entry[1] in obs_kept
+    ]
+    top_kept_sorted = sorted(top_kept, key=lambda e: e[0][0], reverse=True)[:10]
+
+    logger.info("Top 10 highest residuals among retained observations:")
+    for err, ci, f, pid in [e[0] for e in top_kept_sorted]:
         print(
             f"⚠️  Kept Error={err:.2f} px | Camera={CAMERA_NAMES[ci]} | Frame={f} | ID={pid}"
         )
