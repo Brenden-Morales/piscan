@@ -1,0 +1,4 @@
+shoulderpi:
+  hosts:
+    shoulderpi.local:
+      ansible_user: shoulderpi
