@@ -19,7 +19,9 @@ This is for the code and infrastructure that will need to run on the raspberry p
 
 1. Install [raspberry pi imager](https://www.raspberrypi.com/software/)
 2. Flash latest image to pi 5
-
+3. Set username to `shoulderpi` and password to whatever works for you
+4. make sure to flash with wifi (if using wifi to connect)
+5. Setup SSH creds
 ```shell
 ssh-keygen -t ed25519 -C "email"
 ssh-copy-id shoulderpi@shoulderpi.local
