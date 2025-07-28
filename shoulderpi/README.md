@@ -3,6 +3,7 @@ This is for the code and infrastructure that will need to run on the raspberry p
 
 ## Hardware
 - [raspberry pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/)
+- [pi 5 active cooler](https://www.raspberrypi.com/products/active-cooler/)
 - [5.5" 2K capacitive LCD](https://www.waveshare.com/5.5inch-1440x2560-lcd.htm)
 - [Raspberry PI AI Hat](https://www.raspberrypi.com/products/ai-hat/?variant=ai-hat-plus-13)
 - [Shoulder Rig Kit](https://www.smallrig.com/Shoulder-Rig-Kit-Classic-Version-4480.html)
@@ -15,6 +16,10 @@ This is for the code and infrastructure that will need to run on the raspberry p
 
 
 ## setup
+
+1. Install [raspberry pi imager](https://www.raspberrypi.com/software/)
+2. Flash latest image to pi 5
+
 ```shell
 ssh-keygen -t ed25519 -C "email"
 ssh-copy-id shoulderpi@shoulderpi.local
