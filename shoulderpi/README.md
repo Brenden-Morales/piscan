@@ -1,0 +1,22 @@
+# shoulderpi
+This is for the code and infrastructure that will need to run on the raspberry pi 5 that is on the shoulder rig
+
+## Hardware
+- [raspberry pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/)
+- [5.5" 2K capacitive LCD](https://www.waveshare.com/5.5inch-1440x2560-lcd.htm)
+- [Raspberry PI AI Hat](https://www.raspberrypi.com/products/ai-hat/?variant=ai-hat-plus-13)
+- [Shoulder Rig Kit](https://www.smallrig.com/Shoulder-Rig-Kit-Classic-Version-4480.html)
+- [USB Hub](https://www.amazon.com/dp/B00VDVCQ84)
+- [micro USB cables](https://www.amazon.com/dp/B095JZSHXQ)
+- [Makita Battery Terminal](https://www.amazon.com/dp/B0DPSPLWFB)
+- [low voltage module](https://www.amazon.com/dp/B08H14XTZ8)
+- [ideal diodes](https://www.amazon.com/dp/B0DDJFBF3B)
+- [DC -> DC converter](https://www.digikey.com/en/products/detail/mean-well-usa-inc/RSD-60G-12/7706258)
+
+
+## setup
+```shell
+ssh-keygen -t ed25519 -C "email"
+ssh-copy-id shoulderpi@shoulderpi.local
+ssh shoulderpi@shoulderpi.local
+```
