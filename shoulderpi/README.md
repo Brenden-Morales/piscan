@@ -27,3 +27,4 @@ ssh-keygen -t ed25519 -C "email"
 ssh-copy-id shoulderpi@shoulderpi.local
 ssh shoulderpi@shoulderpi.local
 ```
+6. Setup [VNC](https://www.raspberrypi.com/documentation/computers/remote-access.html#vnc) if needed 
