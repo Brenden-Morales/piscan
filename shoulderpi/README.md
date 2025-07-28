@@ -2,10 +2,10 @@
 This is for the code and infrastructure that will need to run on the raspberry pi 5 that is on the shoulder rig
 
 ## Hardware
-- [raspberry pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/)
+- [raspberry pi 5 (8GB)](https://www.raspberrypi.com/products/raspberry-pi-5/)
 - [pi 5 active cooler](https://www.raspberrypi.com/products/active-cooler/)
 - [5.5" 2K capacitive LCD](https://www.waveshare.com/5.5inch-1440x2560-lcd.htm)
-- [Raspberry PI AI Hat](https://www.raspberrypi.com/products/ai-hat/?variant=ai-hat-plus-13)
+- [Raspberry PI AI Hat (13 TOPS)](https://www.raspberrypi.com/products/ai-hat/?variant=ai-hat-plus-13)
 - [Shoulder Rig Kit](https://www.smallrig.com/Shoulder-Rig-Kit-Classic-Version-4480.html)
 - [USB Hub](https://www.amazon.com/dp/B00VDVCQ84)
 - [micro USB cables](https://www.amazon.com/dp/B095JZSHXQ)
