@@ -33,5 +33,5 @@ ssh shoulderpi@shoulderpi.local
 Deploying and managing the pi5 in this project is handled by [ansible](https://docs.ansible.com/ansible/latest/getting_started/index.html)
 
 ```shell
-ansible-playbook -i shoulderpi/inventory.yaml shoulderpi/ping.yaml
+ansible-playbook -i shoulderpi/ansible/inventory.yaml shoulderpi/ansible/playbook.yaml
 ```

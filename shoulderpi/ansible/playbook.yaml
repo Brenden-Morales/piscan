@@ -1,0 +1,16 @@
+- name: Install system dependencies and configure NVM/Pyenv
+  hosts: shoulderpi
+  become: yes
+
+  tasks:
+    - name: Install apt dependencies
+      import_tasks: tasks/apt_dependencies.yaml
+
+    - name: Install NVM
+      import_tasks: tasks/install_nvm.yaml
+
+    - name: Install Pyenv
+      import_tasks: tasks/install_pyenv.yaml
+
+
+

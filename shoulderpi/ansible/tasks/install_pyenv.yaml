@@ -1,0 +1,66 @@
+- name: Install pyenv if not already installed
+  ansible.builtin.shell: |
+    curl -fsSL https://pyenv.run | bash
+  args:
+    executable: /bin/bash
+  environment:
+    HOME: "{{ ansible_env.HOME }}"
+  when: not lookup('ansible.builtin.file', ansible_env.HOME + '/.pyenv', errors='ignore') is defined
+
+- name: Ensure PYENV_ROOT is set in .bashrc
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    line: 'export PYENV_ROOT="$HOME/.pyenv"'
+    insertafter: EOF
+    state: present
+
+- name: Ensure pyenv bin is in PATH
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    line: '[[ -d "$PYENV_ROOT/bin" ]] && export PATH="$PYENV_ROOT/bin:$PATH"'
+    insertafter: EOF
+    state: present
+
+- name: Ensure pyenv is initialized
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    line: 'eval "$(pyenv init - bash)"'
+    insertafter: EOF
+    state: present
+
+- name: Check if Python 3.13 is already installed by pyenv
+  become: false
+  ansible.builtin.shell: |
+    "$HOME/.pyenv/bin/pyenv" versions --bare
+  args:
+    executable: /bin/bash
+  register: pyenv_versions
+  changed_when: false
+  failed_when: pyenv_versions.rc != 0 and 'command not found' not in pyenv_versions.stderr
+
+
+- name: Install Python 3.13 using pyenv if not present
+  become: false
+  ansible.builtin.shell: |
+    "$HOME/.pyenv/bin/pyenv" install 3.13
+  args:
+    executable: /bin/bash
+  when: "'3.13' not in pyenv_versions.stdout"
+
+- name: Get current global Python version
+  become: false
+  ansible.builtin.shell: |
+    "$HOME/.pyenv/bin/pyenv" global
+  args:
+    executable: /bin/bash
+  register: pyenv_global_version
+  changed_when: false
+  failed_when: false
+
+- name: Set global Python version to 3.13
+  become: false
+  ansible.builtin.shell: |
+    "$HOME/.pyenv/bin/pyenv" global 3.13
+  args:
+    executable: /bin/bash
+  when: "'3.13' not in pyenv_global_version.stdout"
