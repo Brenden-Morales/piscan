@@ -20,4 +20,11 @@ ssh-keygen -t ed25519 -C "email"
 ssh-copy-id picam@picamX.local
 ssh picam@picamX.local
 ```
-6. Setup [VNC](https://www.raspberrypi.com/documentation/computers/remote-access.html#vnc) if needed 
+6. Setup [VNC](https://www.raspberrypi.com/documentation/computers/remote-access.html#vnc) if needed
+
+## ansible
+Deploying and managing the pi zero 2ws in this project is handled by [ansible](https://docs.ansible.com/ansible/latest/getting_started/index.html)
+
+```shell
+ansible-playbook -i picam/inventory.yaml picam/ping.yaml
+```
