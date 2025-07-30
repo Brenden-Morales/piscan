@@ -28,6 +28,7 @@ ssh-copy-id shoulderpi@shoulderpi.local
 ssh shoulderpi@shoulderpi.local
 ```
 6. Setup [VNC](https://www.raspberrypi.com/documentation/computers/remote-access.html#vnc) if needed
+7. Install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html#installing-and-upgrading-ansible) to manage deployments to the pi 5
 
 ## ansible
 Deploying and managing the pi5 in this project is handled by [ansible](https://docs.ansible.com/ansible/latest/getting_started/index.html)
