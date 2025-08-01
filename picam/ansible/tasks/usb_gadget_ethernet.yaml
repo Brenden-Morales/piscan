@@ -41,6 +41,24 @@
     ('g_ether.host_addr=' not in (cmdline_raw['content'] | b64decode))
   register: cmdline_changed
 
+
+- name: Create static IP config for usb0 (point-to-point /32)
+  become: true
+  copy:
+    dest: /etc/systemd/network/usb0.network
+    content: |
+      [Match]
+      Name=usb0
+
+      [Network]
+      Broadcast=no
+
+      [Address]
+      Address={{ usb_static_ip }}/32
+
+      [Route]
+      Destination={{ usb_peer_ip }}/32
+
 - name: Ensure dwc2 overlay is enabled in config.txt
   become: true
   lineinfile:

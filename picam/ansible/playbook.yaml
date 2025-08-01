@@ -5,5 +5,8 @@
     - name: Install apt dependencies
       import_tasks: tasks/apt_dependencies.yaml
 
-    - name: Setup usb networking
+    - name: Setup usb gadget mode
       import_tasks: tasks/usb_gadget_ethernet.yaml
+
+    - name: Setup networking
+      import_tasks: tasks/systemd_networkd.yaml

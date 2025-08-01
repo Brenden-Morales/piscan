@@ -1,0 +1,46 @@
+- name: Enable systemd-networkd
+  become: true
+  systemd:
+    name: systemd-networkd
+    enabled: true
+    state: started
+
+- name: Create static IP config for usb0 (point-to-point /32)
+  become: true
+  copy:
+    dest: /etc/systemd/network/usb0.network
+    content: |
+      [Match]
+      Name=usb0
+
+      [Network]
+      Broadcast=no
+
+      [Address]
+      Address={{ usb_static_ip }}/32
+      
+      [Route]
+      Destination={{ usb_peer_ip }}/32
+
+- name: Flush old IP from usb0 (clean state)
+  become: true
+  shell: ip addr flush dev usb0
+
+- name: Restart systemd-networkd
+  become: true
+  systemd:
+    name: systemd-networkd
+    state: restarted
+
+- name: Enable SSH password login
+  become: true
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: 'PasswordAuthentication yes'
+
+- name: Restart SSH
+  become: true
+  service:
+    name: ssh
+    state: restarted

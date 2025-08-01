@@ -1,0 +1,63 @@
+- name: Define static MAC-to-interface + IP mapping for all picam links
+  set_fact:
+    picam_links:
+      - { name: "picam0", mac: "16:22:33:44:55:00", host_ip: "192.168.7.10", peer_ip: "192.168.7.11" }
+      - { name: "picam1", mac: "16:22:33:44:55:01", host_ip: "192.168.7.20", peer_ip: "192.168.7.21" }
+      - { name: "picam2", mac: "16:22:33:44:55:02", host_ip: "192.168.7.30", peer_ip: "192.168.7.31" }
+      - { name: "picam3", mac: "16:22:33:44:55:03", host_ip: "192.168.7.40", peer_ip: "192.168.7.41" }
+      - { name: "picam4", mac: "16:22:33:44:55:04", host_ip: "192.168.7.50", peer_ip: "192.168.7.51" }
+      - { name: "picam5", mac: "16:22:33:44:55:05", host_ip: "192.168.7.60", peer_ip: "192.168.7.61" }
+
+- name: Create udev rules for static picam interface naming
+  become: true
+  copy:
+    dest: /etc/udev/rules.d/99-usb-net-picams.rules
+    content: |
+      {% for link in picam_links %}
+      ACTION=="add", SUBSYSTEM=="net", ATTR{address}=="{{ link.mac | lower }}", NAME="{{ link.name }}"
+      {% endfor %}
+
+- name: Create systemd-networkd .network files for each picam interface (fixed /32 config)
+  become: true
+  copy:
+    dest: "/etc/systemd/network/{{ item.name }}.network"
+    content: |
+      [Match]
+      Name={{ item.name }}
+
+      [Network]
+      Broadcast=no
+
+      [Address]
+      Address={{ item.host_ip }}/32
+  loop: "{{ picam_links }}"
+
+- name: Flush IPs before reapplying corrected configs
+  become: true
+  shell: ip addr flush dev {{ item.name }}
+  loop: "{{ picam_links }}"
+
+- name: Enable and start systemd-networkd
+  become: true
+  systemd:
+    name: systemd-networkd
+    enabled: true
+    state: started
+
+- name: Reload udev rules
+  become: true
+  shell: |
+    udevadm control --reload
+    udevadm trigger
+
+- name: Restart systemd-networkd
+  become: true
+  systemd:
+    name: systemd-networkd
+    state: restarted
+
+- name: Add static routes to Pi Zeros over correct interfaces (with src)
+  become: true
+  command: ip route add {{ item.peer_ip }} dev {{ item.name }} src {{ item.host_ip }}
+  loop: "{{ picam_links }}"
+  ignore_errors: true

@@ -13,3 +13,6 @@
 
     - name: Install pipx and add pipx dependencies
       import_tasks: tasks/pipx.yaml
+
+    - name: Setup USB networking
+      import_tasks: tasks/usb_networking.yaml
