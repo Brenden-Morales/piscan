@@ -1,0 +1,67 @@
+- name: Ensure backup of cmdline.txt
+  become: true
+  copy:
+    src: "/boot/firmware/cmdline.txt"
+    dest: "/boot/firmware/cmdline.txt.bak"
+    remote_src: true
+  when: not lookup('ansible.builtin.file', '/boot/firmware/cmdline.txt.bak', errors='ignore') is not none
+
+- name: Ensure backup of config.txt
+  become: true
+  copy:
+    src: "/boot/firmware/config.txt"
+    dest: "/boot/firmware/config.txt.bak"
+    remote_src: true
+  when: not lookup('ansible.builtin.file', '/boot/firmware/config.txt.bak', errors='ignore') is not none
+
+- name: Read current cmdline.txt contents
+  become: true
+  slurp:
+    src: "/boot/firmware/cmdline.txt"
+  register: cmdline_raw
+
+- name: Debug decoded cmdline.txt
+  debug:
+    msg: "{{ (cmdline_raw['content'] | b64decode).splitlines()[0] }}"
+
+- name: Set cmdline.txt with gadget mode additions
+  become: true
+  copy:
+    dest: "/boot/firmware/cmdline.txt"
+    content: >-
+      {{
+        (cmdline_raw['content'] | b64decode).splitlines()[0].strip()
+        + ' modules-load=dwc2,g_ether'
+        + ' g_ether.dev_addr=' + usb_dev_mac
+        + ' g_ether.host_addr=' + usb_host_mac
+      }}
+  when: >
+    ('modules-load=dwc2,g_ether' not in (cmdline_raw['content'] | b64decode)) or
+    ('g_ether.dev_addr=' not in (cmdline_raw['content'] | b64decode)) or
+    ('g_ether.host_addr=' not in (cmdline_raw['content'] | b64decode))
+  register: cmdline_changed
+
+- name: Ensure dwc2 overlay is enabled in config.txt
+  become: true
+  lineinfile:
+    path: "/boot/firmware/config.txt"
+    line: "dtoverlay=dwc2"
+    state: present
+  register: config_changed
+
+- name: Set default fact if config_changed is undefined
+  set_fact:
+    config_changed: { "changed": false }
+  when: config_changed is not defined
+
+- name: Set default fact if cmdline_changed is undefined
+  set_fact:
+    cmdline_changed: { "changed": false }
+  when: cmdline_changed is not defined
+
+- name: Reboot if either cmdline.txt or config.txt changed
+  become: true
+  reboot:
+    msg: "Rebooting to apply USB gadget changes"
+    reboot_timeout: 120
+  when: cmdline_changed.changed or config_changed.changed

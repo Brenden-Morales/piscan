@@ -23,8 +23,8 @@ ssh picam@picamX.local
 6. Setup [VNC](https://www.raspberrypi.com/documentation/computers/remote-access.html#vnc) if needed
 
 ## ansible
-Deploying and managing the pi zero 2ws in this project is handled by [ansible](https://docs.ansible.com/ansible/latest/getting_started/index.html)
+Deploying and managing the pi zero 2Ws in this project is handled by [ansible](https://docs.ansible.com/ansible/latest/getting_started/index.html)
 
 ```shell
-ansible-playbook -i picam/inventory.yaml picam/ping.yaml
+ansible-playbook -i picam/ansible/inventory.yaml picam/ansible/playbook.yaml
 ```

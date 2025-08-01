@@ -1,0 +1,9 @@
+- name: Install dependencies
+  hosts: cameras
+
+  tasks:
+    - name: Install apt dependencies
+      import_tasks: tasks/apt_dependencies.yaml
+
+    - name: Setup usb networking
+      import_tasks: tasks/usb_gadget_ethernet.yaml
