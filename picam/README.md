@@ -28,3 +28,6 @@ Deploying and managing the pi zero 2Ws in this project is handled by [ansible](h
 ```shell
 ansible-playbook -i picam/ansible/inventory.yaml picam/ansible/playbook.yaml
 ```
+
+This will put all the pi zero 2w's into ethernet gadget mode. Plug them into a powered hub via the `usb` connection 
+on the bottom, make sure the hub is connected to the pi5 
