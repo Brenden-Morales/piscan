@@ -36,3 +36,21 @@ Deploying and managing the pi5 in this project is handled by [ansible](https://d
 ```shell
 ansible-playbook -i shoulderpi/ansible/inventory.yaml shoulderpi/ansible/playbook.yaml
 ```
+
+That should set up all the links to the picams for networking AND create a file at:
+```shell
+/etc/picam_links.json
+```
+
+That will have the config so that other scripts can use it. e.x.:
+
+```json
+[
+    {
+        "host_ip": "192.168.7.10",
+        "mac": "16:22:33:44:55:00",
+        "name": "picam0",
+        "peer_ip": "192.168.7.11"
+    }, ...
+]
+```

@@ -61,3 +61,10 @@
   command: ip route add {{ item.peer_ip }} dev {{ item.name }} src {{ item.host_ip }}
   loop: "{{ picam_links }}"
   ignore_errors: true
+
+- name: Export picam_links to /etc/picam_links.json
+  become: true
+  copy:
+    dest: /etc/picam_links.json
+    content: "{{ picam_links | to_nice_json }}"
+    mode: '0644'
