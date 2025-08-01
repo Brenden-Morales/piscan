@@ -31,3 +31,15 @@ ansible-playbook -i picam/ansible/inventory.yaml picam/ansible/playbook.yaml
 
 This will put all the pi zero 2w's into ethernet gadget mode. Plug them into a powered hub via the `usb` connection 
 on the bottom, make sure the hub is connected to the pi5 
+
+The connection parameters for the pi to communicate back to the host will be in `/etc/picam_config.json` and will look like:
+```json
+{
+   "name": "picam0.local", 
+   "usb_dev_mac": "12:22:33:44:55:00", 
+   "usb_host_mac": "16:22:33:44:55:00", 
+   "usb_static_ip": "192.168.7.11", 
+   "usb_peer_ip": "192.168.7.10", 
+   "listen_port": 9000
+}
+```

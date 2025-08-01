@@ -22,6 +22,21 @@
       [Route]
       Destination={{ usb_peer_ip }}/32
 
+- name: Create picam config JSON
+  become: true
+  copy:
+    dest: /etc/picam_config.json
+    content: |
+      {
+        "name": "{{ inventory_hostname }}",
+        "usb_dev_mac": "{{ usb_dev_mac }}",
+        "usb_host_mac": "{{ usb_host_mac }}",
+        "usb_static_ip": "{{ usb_static_ip }}",
+        "usb_peer_ip": "{{ usb_peer_ip }}",
+        "listen_port": 9000
+      }
+    mode: '0644'
+
 - name: Flush old IP from usb0 (clean state)
   become: true
   shell: ip addr flush dev usb0
