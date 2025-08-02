@@ -4,6 +4,11 @@
     update_cache: yes
     cache_valid_time: 3600
 
+- name: Upgrade all packages (Optional)
+  become: yes
+  apt:
+    upgrade: dist  # Performs a full upgrade, including APT itself
+
 - name: Install pyenv build dependencies
   ansible.builtin.apt:
     name:

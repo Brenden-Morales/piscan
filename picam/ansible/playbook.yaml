@@ -5,6 +5,15 @@
     - name: Install apt dependencies
       import_tasks: tasks/apt_dependencies.yaml
 
+    - name: Install NVM
+      import_tasks: tasks/install_nvm.yaml
+
+    - name: Install Pyenv
+      import_tasks: tasks/install_pyenv.yaml
+
+    - name: Install pipx and add pipx dependencies
+      import_tasks: tasks/pipx.yaml
+
     - name: Setup usb gadget mode
       import_tasks: tasks/usb_gadget_ethernet.yaml
 
