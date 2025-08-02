@@ -1,7 +1,7 @@
 - name: apt update
   hosts: raspberry_pis
   roles:
-    - common
+    - common_apt
 
 - name: pyenv setup and build
   hosts: shoulderpi
@@ -12,3 +12,8 @@
   hosts: picams
   roles:
     - picams
+
+- name: pipx and poetry install
+  hosts: raspberry_pis
+  roles:
+    - common_pipx_poetry
