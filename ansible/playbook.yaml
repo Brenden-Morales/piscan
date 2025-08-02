@@ -6,12 +6,12 @@
 - name: pyenv setup and build
   hosts: shoulderpi
   roles:
-    - shoulderpi
+    - shoulderpi_python
 
 - name: python copy to picams
   hosts: picams
   roles:
-    - picams
+    - picams_python
 
 - name: pipx and poetry install
   hosts: raspberry_pis
