@@ -1,0 +1,22 @@
+all:
+  children:
+    raspberry_pis:
+      children:
+        shoulderpi:
+          hosts:
+            shoulderpi.local:
+              ansible_user: shoulderpi
+        picams:
+          hosts:
+            picam0.local:
+              ansible_user: picam
+            picam1.local:
+              ansible_user: picam
+            picam2.local:
+              ansible_user: picam
+            picam3.local:
+              ansible_user: picam
+            picam4.local:
+              ansible_user: picam
+            picam5.local:
+              ansible_user: picam

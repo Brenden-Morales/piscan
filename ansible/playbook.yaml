@@ -1,0 +1,9 @@
+- name: apt update
+  hosts: raspberry_pis
+  roles:
+    - common
+
+- name: pyenv setup and build
+  hosts: shoulderpi
+  roles:
+    - shoulderpi
