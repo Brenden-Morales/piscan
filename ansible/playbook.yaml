@@ -7,3 +7,8 @@
   hosts: shoulderpi
   roles:
     - shoulderpi
+
+- name: python copy to picams
+  hosts: picams
+  roles:
+    - picams

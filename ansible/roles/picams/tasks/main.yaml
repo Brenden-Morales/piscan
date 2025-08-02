@@ -1,0 +1,2 @@
+- name: Install copy and install python
+  import_tasks: copy_and_install_python.yaml
