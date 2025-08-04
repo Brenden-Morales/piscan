@@ -35,3 +35,8 @@
   hosts: shoulderpi
   roles:
     - shoulderpi_networking
+
+- name: picams camera dependencies
+  hosts: picams
+  roles:
+    - picams_picamera_2
