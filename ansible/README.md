@@ -2,7 +2,11 @@
 
 ```shell
 source .venv/bin/activate
-ansible-playbook -i ansible/inventory.yaml ansible/playbook.yaml
+# provision devices with dependencies etc
+ansible-playbook -i ansible/inventory.yaml ansible/provision.yaml
+# application deployment
+ansible-playbook -i ansible/inventory.yaml ansible/deploy_shoulder.yaml
+ansible-playbook -i ansible/inventory.yaml ansible/deploy_cameras.yaml
 ```
 
 ---
