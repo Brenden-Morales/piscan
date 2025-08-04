@@ -1,0 +1,105 @@
+- name: Ensure backup of critical files
+  become: true
+  copy:
+    src: "/boot/firmware/{{ item }}"
+    dest: "/boot/firmware/{{ item }}.bak"
+    remote_src: true
+  loop:
+    - cmdline.txt
+    - config.txt
+  when: lookup('ansible.builtin.file', '/boot/firmware/{{ item }}.bak', errors='ignore') is none
+
+- name: Read current cmdline.txt contents
+  become: true
+  slurp:
+    src: "/boot/firmware/cmdline.txt"
+  register: cmdline_raw
+
+- name: Set cmdline.txt USB gadget parameters explicitly
+  become: true
+  copy:
+    dest: "/boot/firmware/cmdline.txt"
+    content: >-
+      {{
+        (cmdline_raw['content'] | b64decode).split(' modules-load')[0].strip()
+        + ' modules-load=dwc2,g_ether'
+        + ' g_ether.dev_addr=' + usb_dev_mac
+        + ' g_ether.host_addr=' + usb_host_mac
+      }}
+  register: cmdline_changed
+
+- name: Ensure dwc2 overlay is enabled in config.txt
+  become: true
+  lineinfile:
+    path: "/boot/firmware/config.txt"
+    line: "dtoverlay=dwc2"
+    state: present
+  register: config_changed
+
+- name: Create static IP config for usb0
+  become: true
+  copy:
+    dest: /etc/systemd/network/usb0.network
+    content: |
+      [Match]
+      Name=usb0
+
+      [Network]
+      Broadcast=no
+
+      [Address]
+      Address={{ usb_static_ip }}/32
+      
+      [Route]
+      Destination={{ usb_peer_ip }}/32
+      Scope=link
+
+- name: Enable and start systemd-networkd
+  become: true
+  systemd:
+    name: systemd-networkd
+    enabled: true
+    state: started
+
+- name: Flush old IP from usb0 to ensure clean state
+  become: true
+  shell: ip addr flush dev usb0
+  ignore_errors: true  # safe if device briefly unavailable after reboot
+
+- name: Ensure explicit modprobe options for g_ether (MAC addresses)
+  become: true
+  copy:
+    dest: /etc/modprobe.d/g_ether.conf
+    content: |
+      options g_ether host_addr={{ usb_host_mac }} dev_addr={{ usb_dev_mac }}
+    mode: '0644'
+
+- name: Enable SSH password login
+  become: true
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?PasswordAuthentication'
+    line: 'PasswordAuthentication yes'
+  notify: Restart SSH
+
+- name: Create picam configuration JSON
+  become: true
+  copy:
+    dest: /etc/picam_config.json
+    content: |
+      {
+        "name": "{{ inventory_hostname }}",
+        "usb_dev_mac": "{{ usb_dev_mac }}",
+        "usb_host_mac": "{{ usb_host_mac }}",
+        "usb_static_ip": "{{ usb_static_ip }}",
+        "usb_peer_ip": "{{ usb_peer_ip }}",
+        "listen_port": 9000
+      }
+    mode: '0644'
+
+- name: Reboot if boot configurations changed
+  become: true
+  reboot:
+    msg: "Rebooting to apply USB gadget changes"
+    reboot_timeout: 120
+  when: cmdline_changed.changed or config_changed.changed

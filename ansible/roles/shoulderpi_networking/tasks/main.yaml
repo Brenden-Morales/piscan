@@ -1,0 +1,87 @@
+- name: Define static MAC-to-interface + IP mapping for all picam links
+  set_fact:
+    picam_links:
+      - { name: "picam0", mac: "16:22:33:44:55:00", host_ip: "192.168.7.10", peer_ip: "192.168.7.11" }
+      - { name: "picam1", mac: "16:22:33:44:55:01", host_ip: "192.168.7.20", peer_ip: "192.168.7.21" }
+      - { name: "picam2", mac: "16:22:33:44:55:02", host_ip: "192.168.7.30", peer_ip: "192.168.7.31" }
+      - { name: "picam3", mac: "16:22:33:44:55:03", host_ip: "192.168.7.40", peer_ip: "192.168.7.41" }
+      - { name: "picam4", mac: "16:22:33:44:55:04", host_ip: "192.168.7.50", peer_ip: "192.168.7.51" }
+      - { name: "picam5", mac: "16:22:33:44:55:05", host_ip: "192.168.7.60", peer_ip: "192.168.7.61" }
+
+- name: Create udev rules for static picam interface naming
+  become: true
+  copy:
+    dest: /etc/udev/rules.d/99-usb-net-picams.rules
+    content: |
+      {% for link in picam_links %}
+      ACTION=="add", SUBSYSTEM=="net", ATTR{address}=="{{ link.mac | lower }}", NAME="{{ link.name }}"
+      {% endfor %}
+
+- name: Reload udev rules immediately
+  become: true
+  shell: |
+    udevadm control --reload
+    udevadm trigger
+
+- name: Wait for picam interfaces to appear
+  become: true
+  wait_for:
+    path: "/sys/class/net/{{ item.name }}"
+    timeout: 30
+  loop: "{{ picam_links }}"
+
+- name: Create systemd-networkd .network files for each picam interface
+  become: true
+  copy:
+    dest: "/etc/systemd/network/{{ item.name }}.network"
+    content: |
+      [Match]
+      Name={{ item.name }}
+
+      [Network]
+      Broadcast=no
+
+      [Address]
+      Address={{ item.host_ip }}/32
+  loop: "{{ picam_links }}"
+
+- name: Enable and start systemd-networkd
+  become: true
+  systemd:
+    name: systemd-networkd
+    enabled: true
+    state: started
+
+- name: Flush IP addresses from picam interfaces
+  become: true
+  shell: ip addr flush dev {{ item.name }}
+  loop: "{{ picam_links }}"
+  ignore_errors: true  # ignore interfaces temporarily unavailable
+
+- name: Restart systemd-networkd after IP flush
+  become: true
+  systemd:
+    name: systemd-networkd
+    state: restarted
+
+- name: Verify correct IP assignment on interfaces
+  become: true
+  shell: ip -br addr show dev {{ item.name }} | grep {{ item.host_ip }}
+  register: ip_check
+  retries: 5
+  delay: 2
+  until: ip_check.rc == 0
+  loop: "{{ picam_links }}"
+
+- name: Add static routes to Pi Zeros over correct interfaces
+  become: true
+  shell: |
+    ip route replace {{ item.peer_ip }}/32 dev {{ item.name }} src {{ item.host_ip }}
+  loop: "{{ picam_links }}"
+
+- name: Export picam_links configuration to JSON
+  become: true
+  copy:
+    dest: /etc/picam_links.json
+    content: "{{ picam_links | to_nice_json }}"
+    mode: '0644'

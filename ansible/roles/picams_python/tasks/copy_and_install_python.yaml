@@ -1,4 +1,4 @@
-- name: Ensure pyenv build dependencies are installed (optional but recommended)
+- name: Ensure pyenv build dependencies are installed (recommended)
   become: yes
   ansible.builtin.apt:
     name:
@@ -20,17 +20,62 @@
       - liblzma-dev
     state: present
 
-- name: Ensure PYENV_ROOT directory exists
+- name: Check if .pyenv is a valid git repo
+  stat:
+    path: "{{ ansible_user_dir }}/.pyenv/.git"
+  register: pyenv_git_check
+
+- name: Remove existing invalid pyenv directory (if present and invalid)
+  file:
+    path: "{{ ansible_user_dir }}/.pyenv"
+    state: absent
+  when: not pyenv_git_check.stat.exists
+
+- name: Clone or update pyenv
+  git:
+    repo: "https://github.com/pyenv/pyenv.git"
+    dest: "{{ ansible_user_dir }}/.pyenv"
+    update: yes
+    force: yes
+
+- name: Ensure pyenv environment variables in .bashrc
+  lineinfile:
+    path: "{{ ansible_user_dir }}/.bashrc"
+    line: '{{ item }}'
+    state: present
+  loop:
+    - 'export PYENV_ROOT="$HOME/.pyenv"'
+    - 'export PATH="$PYENV_ROOT/bin:$PATH"'
+    - 'eval "$(pyenv init --path)"'
+    - 'eval "$(pyenv init -)"'
+
+- name: Ensure PYENV_ROOT versions directory exists
   file:
     path: "{{ ansible_user_dir }}/.pyenv/versions"
     state: directory
     mode: '0755'
 
-- name: Copy compiled Python archive to Pi Zeros
+- name: Calculate SHA256 checksum of Python archive on Ansible controller
+  delegate_to: localhost
+  run_once: true
+  stat:
+    path: "files/python{{ python_version }}-arm64.tar.gz"
+    checksum_algorithm: sha256
+  register: local_python_archive_stat
+
+- name: Check existing SHA256 checksum of Python archive on Pi Zeros
+  stat:
+    path: "/tmp/python{{ python_version }}-arm64.tar.gz"
+    checksum_algorithm: sha256
+  register: remote_python_archive_stat
+
+- name: Copy compiled Python archive to Pi Zeros only if checksum differs
   ansible.builtin.copy:
     src: "files/python{{ python_version }}-arm64.tar.gz"
     dest: "/tmp/python{{ python_version }}-arm64.tar.gz"
     mode: '0644'
+  when: (remote_python_archive_stat.stat.checksum is not defined) or
+    (remote_python_archive_stat.stat.checksum != local_python_archive_stat.stat.checksum)
 
 - name: Extract compiled Python binaries
   ansible.builtin.unarchive:
@@ -39,44 +84,12 @@
     remote_src: yes
     creates: "{{ ansible_user_dir }}/.pyenv/versions/{{ python_version }}/bin/python3"
 
-- name: Ensure PYENV_ROOT is set in .bashrc
-  ansible.builtin.lineinfile:
-    path: "{{ ansible_user_dir }}/.bashrc"
-    line: 'export PYENV_ROOT="$HOME/.pyenv"'
-    insertafter: EOF
-    state: present
-
-- name: Ensure pyenv bin is in PATH
-  ansible.builtin.lineinfile:
-    path: "{{ ansible_user_dir }}/.bashrc"
-    line: '[[ -d "$PYENV_ROOT/bin" ]] && export PATH="$PYENV_ROOT/bin:$PATH"'
-    insertafter: EOF
-    state: present
-
-- name: Ensure pyenv is initialized in .bashrc
-  ansible.builtin.lineinfile:
-    path: "{{ ansible_user_dir }}/.bashrc"
-    line: 'eval "$(pyenv init - bash)"'
-    insertafter: EOF
-    state: present
-
-# Immediately load .bashrc environment for subsequent steps
-- name: Source bashrc immediately
-  ansible.builtin.shell: |
-    source "{{ ansible_user_dir }}/.bashrc"
-  args:
-    executable: /bin/bash
-  changed_when: false
-
 - name: Set global Python version to {{ python_version }}
   ansible.builtin.shell: |
-    {{ ansible_user_dir }}/.pyenv/bin/pyenv global {{ python_version }}
-  args:
-    executable: /bin/bash
-
-- name: Rehash pyenv to update shims
-  ansible.builtin.shell: |
-    {{ ansible_user_dir }}/.pyenv/bin/pyenv rehash
+    export PYENV_ROOT="{{ ansible_user_dir }}/.pyenv"
+    export PATH="$PYENV_ROOT/bin:$PATH"
+    pyenv global {{ python_version }}
+    pyenv rehash
   args:
     executable: /bin/bash
 
@@ -91,12 +104,12 @@
   become: yes
   ansible.builtin.command: ldconfig
 
-- name: Verify Python version again after system-wide library fix
+- name: Verify Python version after library fix
   ansible.builtin.shell: |
     {{ ansible_user_dir }}/.pyenv/shims/python --version
   register: python_check
   changed_when: false
 
-- name: Display Python version installed on Pi Zeros
+- name: Display installed Python version
   ansible.builtin.debug:
     msg: "{{ python_check.stdout }}"

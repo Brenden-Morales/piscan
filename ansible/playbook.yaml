@@ -17,3 +17,21 @@
   hosts: raspberry_pis
   roles:
     - common_pipx_poetry
+
+- name: picams networking
+  hosts: picams
+  roles:
+    - picams_networking
+
+- name: Wait for Pi Zeros to reboot (explicit wait before Pi 5 config)
+  hosts: shoulderpi
+  gather_facts: no
+  tasks:
+    - name: Pause for 120 seconds to allow Pi Zeros to reboot fully
+      pause:
+        seconds: 120
+
+- name: shoulderpi networking
+  hosts: shoulderpi
+  roles:
+    - shoulderpi_networking
