@@ -1,0 +1,4 @@
+- name: Remove picam server directory if it exists
+  ansible.builtin.file:
+    path: server
+    state: absent

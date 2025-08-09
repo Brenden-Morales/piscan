@@ -1,0 +1,4 @@
+- name: remove application code from picams
+  hosts: picams
+  roles:
+    - clean_cameras

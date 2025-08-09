@@ -1,0 +1,15 @@
+- name: copy picam_server directory to server/ directory on picams
+  ansible.builtin.copy:
+    src: ../../../picam_server/
+    dest: server/
+    owner: picam
+    mode: '0644'
+
+- name: poetry install in picam /server directory
+  become: yes
+  become_user: picam
+  ansible.builtin.shell: |
+    /home/picam/.local/bin/poetry lock
+    /home/picam/.local/bin/poetry install
+  args:
+    chdir: /home/picam/server

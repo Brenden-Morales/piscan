@@ -1,5 +1,5 @@
 [project]
-name = "picam"
+name = "picam_server"
 version = "0.1.0"
 description = ""
 authors = [
@@ -7,11 +7,15 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.13"
+
+[virtualenvs]
+in-project = true
+
 dependencies = [
 ]
 
 [tool.poetry]
-packages = [{include = "picam", from = "src"}]
+packages = [{include = "picam_server", from = "src"}]
 
 
 [build-system]

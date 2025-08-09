@@ -1,0 +1,4 @@
+- name: deploy application code to picams
+  hosts: picams
+  roles:
+    - deploy_cameras
