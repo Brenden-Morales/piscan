@@ -2,3 +2,8 @@
   hosts: picams
   roles:
     - deploy_cameras
+
+- name: deploy application code to shoulderpi
+  hosts: shoulderpi
+  roles:
+    - deploy_shoulder

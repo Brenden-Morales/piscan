@@ -1,0 +1,16 @@
+- name: copy shoulderpi_coordinator directory to coordinator/ directory on shoulderpi
+  ansible.builtin.copy:
+    src: ../../../shoulderpi_coordinator/
+    dest: coordinator/
+    owner: shoulderpi
+    mode: '0644'
+
+- name: poetry install in shoulderpi /coordinator directory
+  become: yes
+  become_user: shoulderpi
+  ansible.builtin.shell: |
+    export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
+    /home/shoulderpi/.local/bin/poetry lock
+    /home/shoulderpi/.local/bin/poetry install
+  args:
+    chdir: /home/shoulderpi/coordinator

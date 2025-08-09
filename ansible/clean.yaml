@@ -2,3 +2,8 @@
   hosts: picams
   roles:
     - clean_cameras
+
+- name: remove application code from shoulderpi
+  hosts: shoulderpi
+  roles:
+    - clean_shoulder

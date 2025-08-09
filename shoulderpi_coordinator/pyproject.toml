@@ -1,5 +1,5 @@
 [project]
-name = "shoulderpi"
+name = "shoulderpi_coordinator"
 version = "0.1.0"
 description = ""
 authors = [
@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [tool.poetry]
-packages = [{include = "shoulderpi", from = "src"}]
+packages = [{include = "shoulderpi_coordinator", from = "src"}]
 
 
 [build-system]

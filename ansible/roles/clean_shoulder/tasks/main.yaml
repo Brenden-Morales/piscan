@@ -1,0 +1,4 @@
+- name: Remove shoulderpi coordinator directory if it exists
+  ansible.builtin.file:
+    path: coordinator
+    state: absent
